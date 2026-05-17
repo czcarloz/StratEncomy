@@ -18,7 +18,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-950">
+      <div className="flex min-h-screen items-center justify-center bg-bg">
         <Spinner className="h-8 w-8" />
       </div>
     );
@@ -27,7 +27,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   if (!user) return null;
 
   return (
-    <div className="flex min-h-screen bg-zinc-950">
+    <div className="flex min-h-screen bg-bg">
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <main className="flex-1 overflow-y-auto p-6">{children}</main>

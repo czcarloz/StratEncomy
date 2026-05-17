@@ -28,7 +28,7 @@ export const TYPE_LABELS: Record<string, string> = {
 };
 
 export const TYPE_COLORS: Record<string, string> = {
-  expense: "bg-red-900/40 text-red-400",
-  income: "bg-green-900/40 text-green-400",
-  investment: "bg-blue-900/40 text-blue-400",
+  expense:    "bg-danger-bg text-danger",
+  income:     "bg-primary-bg text-success",
+  investment: "bg-info-bg text-info",
 };

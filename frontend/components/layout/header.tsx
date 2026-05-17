@@ -13,8 +13,8 @@ export function Header({ title }: HeaderProps) {
   const options = tenants.map((t) => ({ value: t.id, label: t.name }));
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-zinc-800 bg-zinc-950 px-6">
-      <h1 className="text-base font-semibold text-zinc-100">{title}</h1>
+    <header className="flex h-12 items-center justify-between border-b border-border pb-4 mb-2">
+      <h1 className="text-lg font-semibold text-text">{title}</h1>
 
       {tenants.length > 1 && (
         <div className="w-48">

@@ -28,19 +28,19 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-bg/80 backdrop-blur-[2px]"
         onClick={onClose}
       />
       <div
         className={cn(
-          "relative z-10 w-full max-w-md rounded-lg border border-zinc-700 bg-zinc-900 p-6 shadow-xl",
+          "relative z-10 w-full max-w-md rounded-modal border border-border bg-surface p-6 shadow-2xl",
           className
         )}
       >
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-zinc-100">{title}</h2>
-          <Button variant="ghost" size="sm" onClick={onClose} className="p-1.5">
-            <X size={16} />
+        <div className="mb-5 flex items-center justify-between">
+          <h2 className="text-base font-semibold text-text">{title}</h2>
+          <Button variant="ghost" size="sm" onClick={onClose} className="p-1.5 -mr-1">
+            <X size={15} />
           </Button>
         </div>
         {children}

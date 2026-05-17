@@ -16,7 +16,7 @@ export function Select({
     <select
       {...props}
       className={cn(
-        "w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:opacity-50",
+        "w-full rounded-input border border-border bg-surface px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-40 transition-colors duration-150",
         className
       )}
     >
@@ -26,7 +26,7 @@ export function Select({
         </option>
       )}
       {options.map((o) => (
-        <option key={o.value} value={o.value}>
+        <option key={o.value} value={o.value} className="bg-surface">
           {o.label}
         </option>
       ))}

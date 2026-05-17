@@ -17,8 +17,8 @@ import { Spinner } from "@/components/ui/spinner";
 
 const TYPE_OPTIONS = [
   { value: "", label: "All types" },
-  { value: "expense", label: TYPE_LABELS.expense },
-  { value: "income", label: TYPE_LABELS.income },
+  { value: "expense",    label: TYPE_LABELS.expense },
+  { value: "income",     label: TYPE_LABELS.income },
   { value: "investment", label: TYPE_LABELS.investment },
 ];
 
@@ -27,7 +27,6 @@ const YEAR_OPTIONS = Array.from({ length: 5 }, (_, i) => ({
   value: CURRENT_YEAR - i,
   label: String(CURRENT_YEAR - i),
 }));
-
 const MONTH_OPTIONS = [
   { value: "", label: "All months" },
   ...MONTHS.map((m, i) => ({ value: i + 1, label: m })),
@@ -56,7 +55,7 @@ export default function TransactionsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [filterMonth, setFilterMonth] = useState<string>("");
+  const [filterMonth, setFilterMonth] = useState<string>(String(new Date().getMonth() + 1));
   const [filterYear, setFilterYear] = useState<string>(String(CURRENT_YEAR));
   const [filterType, setFilterType] = useState<string>("");
 
@@ -72,8 +71,8 @@ export default function TransactionsPage() {
       const [txs, cats] = await Promise.all([
         api.transactions.list({
           month: filterMonth ? Number(filterMonth) : undefined,
-          year: filterYear ? Number(filterYear) : undefined,
-          type: filterType || undefined,
+          year:  filterYear  ? Number(filterYear)  : undefined,
+          type:  filterType  || undefined,
         }),
         api.categories.list(),
       ]);
@@ -84,9 +83,7 @@ export default function TransactionsPage() {
     }
   }, [currentTenantId, filterMonth, filterYear, filterType]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   const categoryName = (id: number) =>
     categories.find((c) => c.id === id)?.name ?? "—";
@@ -101,10 +98,10 @@ export default function TransactionsPage() {
     try {
       await api.transactions.create({
         category_id: Number(form.category_id),
-        type: form.type,
-        amount: form.amount,
+        type:        form.type,
+        amount:      form.amount,
         description: form.description || undefined,
-        date: form.date,
+        date:        form.date,
       });
       setModalOpen(false);
       setForm(EMPTY_FORM);
@@ -127,76 +124,56 @@ export default function TransactionsPage() {
     : categories;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <Header title="Transactions" />
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Select
-          options={MONTH_OPTIONS}
-          value={filterMonth}
-          onChange={(e) => setFilterMonth(e.target.value)}
-          className="w-36"
-        />
-        <Select
-          options={YEAR_OPTIONS}
-          value={filterYear}
-          onChange={(e) => setFilterYear(e.target.value)}
-          className="w-28"
-        />
-        <Select
-          options={TYPE_OPTIONS}
-          value={filterType}
-          onChange={(e) => setFilterType(e.target.value)}
-          className="w-36"
-        />
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Select options={MONTH_OPTIONS} value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} className="w-36" />
+        <Select options={YEAR_OPTIONS}  value={filterYear}  onChange={(e) => setFilterYear(e.target.value)}  className="w-28" />
+        <Select options={TYPE_OPTIONS}  value={filterType}  onChange={(e) => setFilterType(e.target.value)}  className="w-36" />
         <div className="ml-auto">
           <Button onClick={() => { setForm(EMPTY_FORM); setFormError(""); setModalOpen(true); }}>
-            <Plus size={16} /> New transaction
+            <Plus size={14} /> New transaction
           </Button>
         </div>
       </div>
 
+      {/* Table */}
       {loading ? (
-        <div className="flex justify-center py-12">
-          <Spinner className="h-8 w-8" />
-        </div>
+        <div className="flex justify-center py-14"><Spinner className="h-7 w-7" /></div>
       ) : transactions.length === 0 ? (
-        <div className="rounded-lg border border-zinc-800 py-12 text-center text-sm text-zinc-500">
+        <div className="rounded-card border border-border py-14 text-center text-sm text-muted">
           No transactions found.
         </div>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-zinc-800">
+        <div className="overflow-hidden rounded-card border border-border">
           <table className="w-full text-sm">
-            <thead className="border-b border-zinc-800 bg-zinc-900">
+            <thead className="border-b border-border bg-surface">
               <tr>
-                <th className="px-4 py-3 text-left font-medium text-zinc-400">Date</th>
-                <th className="px-4 py-3 text-left font-medium text-zinc-400">Description</th>
-                <th className="px-4 py-3 text-left font-medium text-zinc-400">Category</th>
-                <th className="px-4 py-3 text-left font-medium text-zinc-400">Type</th>
-                <th className="px-4 py-3 text-right font-medium text-zinc-400">Amount</th>
-                <th className="px-4 py-3" />
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted uppercase tracking-wide">Date</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted uppercase tracking-wide">Description</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted uppercase tracking-wide">Category</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted uppercase tracking-wide">Type</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-muted uppercase tracking-wide">Amount</th>
+                <th className="px-4 py-3 w-8" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-800">
+            <tbody className="divide-y divide-border">
               {transactions.map((tx) => (
-                <tr key={tx.id} className="bg-zinc-950 hover:bg-zinc-900 transition-colors">
-                  <td className="px-4 py-3 text-zinc-300">{formatDate(tx.date)}</td>
-                  <td className="px-4 py-3 text-zinc-300">{tx.description ?? "—"}</td>
-                  <td className="px-4 py-3 text-zinc-400">{categoryName(tx.category_id)}</td>
+                <tr key={tx.id} className="bg-bg hover:bg-surface transition-colors duration-100">
+                  <td className="px-4 py-3 text-muted text-sm">{formatDate(tx.date)}</td>
+                  <td className="px-4 py-3 text-text">{tx.description ?? "—"}</td>
+                  <td className="px-4 py-3 text-muted">{categoryName(tx.category_id)}</td>
                   <td className="px-4 py-3">
-                    <Badge className={TYPE_COLORS[tx.type]}>
-                      {TYPE_LABELS[tx.type]}
-                    </Badge>
+                    <Badge className={TYPE_COLORS[tx.type]}>{TYPE_LABELS[tx.type]}</Badge>
                   </td>
-                  <td className="px-4 py-3 text-right font-medium text-zinc-100">
+                  <td className="px-4 py-3 text-right font-medium text-text tabular">
                     {formatCurrency(tx.amount)}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => handleDelete(tx.id)}
-                      className="text-zinc-600 hover:text-red-400 transition-colors"
-                    >
-                      <Trash2 size={15} />
+                    <button onClick={() => handleDelete(tx.id)} className="text-muted hover:text-danger transition-colors duration-150">
+                      <Trash2 size={14} />
                     </button>
                   </td>
                 </tr>
@@ -206,14 +183,15 @@ export default function TransactionsPage() {
         </div>
       )}
 
+      {/* Create Modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="New Transaction">
         <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             <Label>Type</Label>
             <Select
               options={[
-                { value: "expense", label: "Expense" },
-                { value: "income", label: "Income" },
+                { value: "expense",    label: "Expense" },
+                { value: "income",     label: "Income" },
                 { value: "investment", label: "Investment" },
               ]}
               value={form.type}
@@ -221,7 +199,7 @@ export default function TransactionsPage() {
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             <Label>Category</Label>
             <Select
               options={filteredCategories.map((c) => ({ value: c.id, label: c.name }))}
@@ -231,44 +209,25 @@ export default function TransactionsPage() {
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             <Label>Amount (R$)</Label>
-            <Input
-              type="number"
-              min="0.01"
-              step="0.01"
-              placeholder="0.00"
-              value={form.amount}
-              onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-            />
+            <Input type="number" min="0.01" step="0.01" placeholder="0.00" value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} />
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             <Label>Date</Label>
-            <Input
-              type="date"
-              value={form.date}
-              onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-            />
+            <Input type="date" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} />
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             <Label>Description (optional)</Label>
-            <Input
-              placeholder="Description"
-              value={form.description}
-              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-            />
+            <Input placeholder="Description" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
           </div>
 
-          {formError && (
-            <p className="text-sm text-red-400">{formError}</p>
-          )}
+          {formError && <p className="text-sm text-danger">{formError}</p>}
 
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="secondary" onClick={() => setModalOpen(false)}>
-              Cancel
-            </Button>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
             <Button onClick={handleCreate} disabled={submitting}>
               {submitting ? <Spinner className="h-4 w-4" /> : "Create"}
             </Button>
