@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.middleware import TenantMiddleware
 from app.api.v1.auth import router as auth_router, tenants_router
+from app.api.v1.categories import router as categories_router
+from app.api.v1.transactions import router as transactions_router
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -23,6 +25,8 @@ app.add_middleware(TenantMiddleware)
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(tenants_router, prefix="/api/v1")
+app.include_router(categories_router, prefix="/api/v1")
+app.include_router(transactions_router, prefix="/api/v1")
 
 
 @app.get("/health", tags=["status"])

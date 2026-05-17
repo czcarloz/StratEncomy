@@ -1,3 +1,4 @@
+import secrets
 from datetime import UTC, datetime, timedelta
 
 from argon2 import PasswordHasher
@@ -38,6 +39,7 @@ def create_refresh_token(user_id: int) -> str:
         "sub": str(user_id),
         "exp": expire,
         "type": "refresh",
+        "jti": secrets.token_hex(16),
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
