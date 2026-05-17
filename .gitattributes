@@ -1,0 +1,8 @@
+# Força LF para todos os arquivos de texto (essencial para containers Linux)
+* text=auto eol=lf
+
+# Binários explícitos
+*.png binary
+*.jpg binary
+*.ico binary
+*.pdf binary
