@@ -1,53 +1,53 @@
 # StratEncomy
 
-Plataforma multi-tenant de gestão financeira pessoal e carteiras de investimento.
+Multi-tenant platform for personal financial management and investment portfolio tracking.
 
 ## Stack
 
-| Camada | Tecnologia |
+| Layer | Technology |
 |---|---|
 | Backend | Python 3.12 + FastAPI |
-| Banco | PostgreSQL 16 + RLS |
+| Database | PostgreSQL 16 + RLS |
 | ORM | SQLAlchemy 2.0 + Alembic |
 | Frontend | Next.js 14 + TypeScript + Tailwind |
 | Container | Docker Compose |
 
-## Pré-requisitos
+## Prerequisites
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 - Git
 
-## Setup inicial
+## Getting started
 
 ```bash
-# 1. Clone o repositório
+# 1. Clone the repository
 git clone https://github.com/czcarloz/StratEncomy.git
 cd StratEncomy
 
-# 2. Crie o arquivo de variáveis de ambiente
+# 2. Create the environment file
 cp .env.example .env
-# Edite o .env e troque todas as senhas antes de subir
+# Edit .env and replace all passwords before starting
 
-# 3. Suba os containers
+# 3. Start all containers
 docker compose up --build
 ```
 
-Serviços disponíveis após o `docker compose up`:
+Services available after `docker compose up`:
 
-| Serviço | URL |
+| Service | URL |
 |---|---|
 | Frontend | http://localhost:3000 |
 | Backend API | http://localhost:8000 |
 | Swagger Docs | http://localhost:8000/docs |
 | pgAdmin | http://localhost:5050 |
 
-## Desenvolvimento
+## Development
 
 ```bash
-# Subir apenas o banco (útil para rodar backend local)
+# Start only the database (useful for running backend locally)
 docker compose up db -d
 
-# Rodar testes do backend
+# Run backend tests
 cd backend
 pip install -r requirements-dev.txt
 pytest
@@ -56,18 +56,18 @@ pytest
 ruff check .
 ```
 
-## Estrutura
+## Project structure
 
 ```
 StratEncomy/
 ├── backend/
 │   ├── app/
-│   │   ├── core/       # config, segurança, dependências
-│   │   ├── db/         # session, base, helpers RLS
-│   │   ├── models/     # SQLAlchemy
-│   │   ├── schemas/    # Pydantic
+│   │   ├── core/       # config, security, dependencies
+│   │   ├── db/         # session, base, RLS helpers
+│   │   ├── models/     # SQLAlchemy models
+│   │   ├── schemas/    # Pydantic schemas
 │   │   ├── api/v1/     # routers
-│   │   ├── services/   # lógica de negócio
+│   │   ├── services/   # business logic
 │   │   └── main.py
 │   └── tests/
 ├── frontend/
@@ -78,20 +78,21 @@ StratEncomy/
 └── .env.example
 ```
 
-## Branches
+## Branch strategy
 
-- `main` — código estável (protegida, merge apenas via PR)
-- `dia-N` — branch de trabalho de cada dia do cronograma
+- `main` — stable code (protected, merge via PR only)
+- `develop` — integration branch (merge target for each day's work)
+- `dia-N` — daily working branches
 
-## Progresso
+## Progress
 
-- [x] Dia 1 — Fundação & Ambiente
-- [ ] Dia 2 — Auth & Multi-tenant
-- [ ] Dia 3 — Categorias & Transações
-- [ ] Dia 4 — Frontend: Auth + Layout + Lançamentos
-- [ ] Dia 5 — Cartão de Crédito & Aportes Planejados
-- [ ] Dia 6 — Dashboard & Gráficos
-- [ ] Dia 7 — Exportação de Relatórios
-- [ ] Dia 8 — Segurança, Audit, Hardening
-- [ ] Dia 9 — Investimentos (esqueleto)
-- [ ] Dia 10 — Investimentos (dashboard) + Polimento + Deploy
+- [x] Day 1 — Foundation & Environment
+- [ ] Day 2 — Auth & Multi-tenant
+- [ ] Day 3 — Categories & Transactions
+- [ ] Day 4 — Frontend: Auth + Layout + Transactions
+- [ ] Day 5 — Credit Card & Planned Investments
+- [ ] Day 6 — Dashboard & Charts
+- [ ] Day 7 — Report Export
+- [ ] Day 8 — Security, Audit, Hardening
+- [ ] Day 9 — Investments (skeleton)
+- [ ] Day 10 — Investments (dashboard) + Polish + Deploy

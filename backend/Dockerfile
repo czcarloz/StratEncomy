@@ -4,7 +4,7 @@ WORKDIR /app
 
 RUN pip install --no-cache-dir uv
 
-COPY requirements-dev.txt .
+COPY requirements.txt requirements-dev.txt ./
 RUN uv pip install --system --no-cache -r requirements-dev.txt
 
 COPY . .
