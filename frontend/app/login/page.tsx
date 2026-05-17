@@ -22,16 +22,11 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const { access_token, refresh_token } = await api.auth.login(
-        email,
-        password
-      );
+      const { access_token, refresh_token } = await api.auth.login(email, password);
       auth.setTokens(access_token, refresh_token);
 
       const tenants = await api.tenants.mine();
-      if (tenants.length > 0) {
-        auth.setTenantId(tenants[0].id);
-      }
+      if (tenants.length > 0) auth.setTenantId(tenants[0].id);
 
       router.push("/transactions");
     } catch (err: unknown) {
@@ -42,15 +37,15 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-950">
-      <div className="w-full max-w-sm rounded-lg border border-zinc-800 bg-zinc-900 p-8 shadow-xl">
+    <div className="flex min-h-screen items-center justify-center bg-bg">
+      <div className="w-full max-w-sm rounded-modal border border-border bg-surface p-8 shadow-2xl">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-indigo-400">StratEncomy</h1>
-          <p className="mt-1 text-sm text-zinc-500">Sign in to your account</p>
+          <h1 className="text-2xl font-semibold text-primary tracking-tight">StratEncomy</h1>
+          <p className="mt-1 text-sm text-muted">Sign in to your account</p>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             <Label htmlFor="email">Email</Label>
             <Input
               id="email"
@@ -63,7 +58,7 @@ export default function LoginPage() {
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             <Label htmlFor="password">Password</Label>
             <Input
               id="password"
@@ -77,7 +72,7 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <p className="rounded-md border border-red-800 bg-red-900/30 px-3 py-2 text-sm text-red-400">
+            <p className="rounded-input border border-danger/40 bg-danger-bg px-3 py-2 text-sm text-danger">
               {error}
             </p>
           )}

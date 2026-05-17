@@ -12,6 +12,8 @@ from app.db.base import Base
 import app.models.user  # noqa: F401
 import app.models.transaction  # noqa: F401
 import app.models.audit  # noqa: F401
+import app.models.credit_card  # noqa: F401
+import app.models.planned_investment  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)

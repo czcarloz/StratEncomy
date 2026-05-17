@@ -1,5 +1,5 @@
 import { auth } from "./auth";
-import type { Category, Tenant, Transaction, User } from "@/types";
+import type { Category, CreditCard, CreditCardPurchase, Invoice, PlannedInvestment, Tenant, Transaction, User } from "@/types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -84,5 +84,47 @@ export const api = {
       }),
     remove: (id: number) =>
       req<void>(`/api/v1/transactions/${id}`, { method: "DELETE" }),
+  },
+
+  creditCards: {
+    list: () => req<CreditCard[]>("/api/v1/credit-cards"),
+    create: (data: { name: string; closing_day: number; due_day: number; limit?: string }) =>
+      req<CreditCard>("/api/v1/credit-cards", { method: "POST", body: JSON.stringify(data) }),
+    remove: (id: number) => req<void>(`/api/v1/credit-cards/${id}`, { method: "DELETE" }),
+    purchases: (cardId: number) =>
+      req<CreditCardPurchase[]>(`/api/v1/credit-cards/${cardId}/purchases`),
+    addPurchase: (
+      cardId: number,
+      data: { description: string; total_amount: string; installments: number; purchase_date: string }
+    ) =>
+      req<CreditCardPurchase>(`/api/v1/credit-cards/${cardId}/purchases`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    removePurchase: (cardId: number, purchaseId: number) =>
+      req<void>(`/api/v1/credit-cards/${cardId}/purchases/${purchaseId}`, { method: "DELETE" }),
+    invoice: (cardId: number, month: number, year: number) =>
+      req<Invoice>(`/api/v1/credit-cards/${cardId}/invoice?month=${month}&year=${year}`),
+  },
+
+  plannedInvestments: {
+    list: (params: { month?: number; year?: number }) => {
+      const qs = new URLSearchParams();
+      if (params.month) qs.set("month", String(params.month));
+      if (params.year) qs.set("year", String(params.year));
+      return req<PlannedInvestment[]>(`/api/v1/planned-investments?${qs}`);
+    },
+    create: (data: {
+      month: number;
+      year: number;
+      asset_label: string;
+      amount_planned: string;
+      note?: string;
+    }) =>
+      req<PlannedInvestment>("/api/v1/planned-investments", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    remove: (id: number) => req<void>(`/api/v1/planned-investments/${id}`, { method: "DELETE" }),
   },
 };
