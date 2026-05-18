@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ArrowLeftRight, CreditCard, TrendingUp, LogOut } from "lucide-react";
+import { LayoutDashboard, ArrowLeftRight, CreditCard, TrendingUp, LogOut, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 
@@ -10,6 +10,7 @@ const NAV = [
   { href: "/transactions",        label: "Transactions",        icon: ArrowLeftRight },
   { href: "/credit-cards",        label: "Credit Cards",        icon: CreditCard },
   { href: "/planned-investments", label: "Planned Investments", icon: TrendingUp },
+  { href: "/categories",          label: "Categories",          icon: Tag },
   { href: "/dashboard",           label: "Dashboard",           icon: LayoutDashboard },
 ];
 

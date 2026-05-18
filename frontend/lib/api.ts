@@ -55,6 +55,13 @@ export const api = {
         method: "POST",
         body: JSON.stringify(data),
       }),
+    update: (id: number, data: { name: string }) =>
+      req<Category>(`/api/v1/categories/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+    remove: (id: number) =>
+      req<void>(`/api/v1/categories/${id}`, { method: "DELETE" }),
   },
 
   transactions: {
@@ -126,6 +133,21 @@ export const api = {
         body: JSON.stringify(data),
       }),
     remove: (id: number) => req<void>(`/api/v1/planned-investments/${id}`, { method: "DELETE" }),
+  },
+
+  reports: {
+    download: async (format: "pdf" | "xlsx", year: number, month?: number): Promise<Blob> => {
+      const token = auth.getToken();
+      const tenantId = auth.getTenantId();
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      if (tenantId) headers["X-Tenant-ID"] = String(tenantId);
+      const qs = new URLSearchParams({ format, year: String(year) });
+      if (month) qs.set("month", String(month));
+      const res = await fetch(`${BASE}/api/v1/reports/transactions?${qs}`, { headers });
+      if (!res.ok) throw new Error("Export failed");
+      return res.blob();
+    },
   },
 
   dashboard: {

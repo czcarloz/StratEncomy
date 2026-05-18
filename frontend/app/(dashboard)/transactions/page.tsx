@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Trash2, FolderPlus, X } from "lucide-react";
+import { Plus, Trash2, FolderPlus, X, Download } from "lucide-react";
 import { api } from "@/lib/api";
+import { downloadBlob } from "@/lib/download";
 import { useAuth } from "@/contexts/auth-context";
 import { formatCurrency, formatDate, MONTHS, TYPE_COLORS, TYPE_LABELS } from "@/lib/utils";
 import type { Category, Transaction } from "@/types";
@@ -59,6 +60,7 @@ export default function TransactionsPage() {
   const [filterYear, setFilterYear] = useState<string>(String(CURRENT_YEAR));
   const [filterType, setFilterType] = useState<string>("");
 
+  const [exporting, setExporting] = useState<"pdf" | "xlsx" | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState<CreateForm>(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
@@ -80,6 +82,8 @@ export default function TransactionsPage() {
       ]);
       setTransactions(txs);
       setCategories(cats);
+    } catch {
+      // network error
     } finally {
       setLoading(false);
     }
@@ -127,10 +131,28 @@ export default function TransactionsPage() {
     }
   }
 
+  async function handleExport(format: "pdf" | "xlsx") {
+    setExporting(format);
+    const month = filterMonth ? Number(filterMonth) : undefined;
+    const year = Number(filterYear);
+    try {
+      const blob = await api.reports.download(format, year, month);
+      const ext = format === "pdf" ? "pdf" : "xlsx";
+      const suffix = month ? `${year}_${String(month).padStart(2, "0")}` : String(year);
+      downloadBlob(blob, `transactions_${suffix}.${ext}`);
+    } finally {
+      setExporting(null);
+    }
+  }
+
   async function handleDelete(id: number) {
     if (!confirm("Delete this transaction?")) return;
-    await api.transactions.remove(id);
-    loadData();
+    try {
+      await api.transactions.remove(id);
+      await loadData();
+    } catch {
+      // network error — user can retry
+    }
   }
 
   const filteredCategories = form.type
@@ -146,7 +168,25 @@ export default function TransactionsPage() {
         <Select options={MONTH_OPTIONS} value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} className="w-36" />
         <Select options={YEAR_OPTIONS}  value={filterYear}  onChange={(e) => setFilterYear(e.target.value)}  className="w-28" />
         <Select options={TYPE_OPTIONS}  value={filterType}  onChange={(e) => setFilterType(e.target.value)}  className="w-36" />
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => handleExport("xlsx")}
+            disabled={exporting !== null}
+            title="Export XLSX"
+          >
+            {exporting === "xlsx" ? <Spinner className="h-3.5 w-3.5" /> : <Download size={14} />}
+            XLSX
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => handleExport("pdf")}
+            disabled={exporting !== null}
+            title="Export PDF"
+          >
+            {exporting === "pdf" ? <Spinner className="h-3.5 w-3.5" /> : <Download size={14} />}
+            PDF
+          </Button>
           <Button onClick={() => { setForm(EMPTY_FORM); setFormError(""); setNewCatMode(false); setNewCatName(""); setModalOpen(true); }}>
             <Plus size={14} /> New transaction
           </Button>

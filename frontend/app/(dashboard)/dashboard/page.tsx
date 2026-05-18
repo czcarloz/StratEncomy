@@ -5,14 +5,16 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend,
 } from "recharts";
-import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Download } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/auth-context";
 import { formatCurrency, MONTHS } from "@/lib/utils";
+import { downloadBlob } from "@/lib/download";
 import type { DashboardSummary, MonthlyPoint } from "@/types";
 import { Header } from "@/components/layout/header";
 import { Select } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
+import { Button } from "@/components/ui/button";
 
 // ── Design tokens (match tailwind config) ──────────────────────────────────
 const C = {
@@ -32,7 +34,10 @@ const PIE_COLORS = ["#059669", "#10B981", "#3B82F6", "#F59E0B", "#8B5CF6", "#EC4
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS  = Array.from({ length: 5 }, (_, i) => ({ value: CURRENT_YEAR - i, label: String(CURRENT_YEAR - i) }));
-const MONTH_OPTIONS = MONTHS.map((m, i) => ({ value: i + 1, label: m }));
+const MONTH_OPTIONS = [
+  { value: 0, label: "All months" },
+  ...MONTHS.map((m, i) => ({ value: i + 1, label: m })),
+];
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -58,15 +63,15 @@ function DeltaBadge({ pct, inverse = false }: { pct: number; inverse?: boolean }
 function KpiCard({
   label, value, delta: d, inverse = false, accent,
 }: {
-  label: string; value: string; delta: number; inverse?: boolean; accent: string;
+  label: string; value: string | number; delta?: number; inverse?: boolean; accent: string;
 }) {
   return (
     <div className="rounded-card border border-border bg-surface p-5 flex flex-col gap-3">
       <p className="text-xs font-medium text-muted uppercase tracking-wide">{label}</p>
-      <p className={`text-2xl font-semibold tabular`} style={{ color: accent }}>
+      <p className="text-2xl font-semibold tabular" style={{ color: accent }}>
         {formatCurrency(value)}
       </p>
-      <DeltaBadge pct={d} inverse={inverse} />
+      {d !== undefined && <DeltaBadge pct={d} inverse={inverse} />}
     </div>
   );
 }
@@ -93,28 +98,55 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 export default function DashboardPage() {
   const { currentTenantId } = useAuth();
 
+  // month=0 means "all months"
   const [month, setMonth]         = useState(new Date().getMonth() + 1);
   const [year, setYear]           = useState(CURRENT_YEAR);
   const [summary, setSummary]     = useState<DashboardSummary | null>(null);
   const [yearly, setYearly]       = useState<MonthlyPoint[]>([]);
   const [loading, setLoading]     = useState(true);
+  const [exporting, setExporting] = useState<"pdf" | "xlsx" | null>(null);
+
+  const allMonths = month === 0;
 
   const load = useCallback(async () => {
     if (!currentTenantId) return;
     setLoading(true);
     try {
-      const [s, y] = await Promise.all([
-        api.dashboard.summary(month, year),
-        api.dashboard.yearly(year),
-      ]);
-      setSummary(s);
-      setYearly(y);
+      if (allMonths) {
+        const y = await api.dashboard.yearly(year);
+        setYearly(y);
+        setSummary(null);
+      } else {
+        const [s, y] = await Promise.all([
+          api.dashboard.summary(month, year),
+          api.dashboard.yearly(year),
+        ]);
+        setSummary(s);
+        setYearly(y);
+      }
+    } catch {
+      // network error
     } finally {
       setLoading(false);
     }
-  }, [currentTenantId, month, year]);
+  }, [currentTenantId, month, year, allMonths]);
 
   useEffect(() => { load(); }, [load]);
+
+  async function handleExport(format: "pdf" | "xlsx") {
+    setExporting(format);
+    const monthParam = allMonths ? undefined : month;
+    try {
+      const blob = await api.reports.download(format, year, monthParam);
+      const ext = format === "pdf" ? "pdf" : "xlsx";
+      const suffix = monthParam ? `${year}_${String(monthParam).padStart(2, "0")}` : String(year);
+      downloadBlob(blob, `transactions_${suffix}.${ext}`);
+    } catch {
+      // export failed silently
+    } finally {
+      setExporting(null);
+    }
+  }
 
   // Yearly chart data
   const yearlyData = yearly.map((p) => ({
@@ -125,7 +157,22 @@ export default function DashboardPage() {
     Balance:    Number(p.balance),
   }));
 
-  // Pie data
+  // KPI totals: monthly summary OR yearly aggregate
+  const yearlyTotals = yearly.reduce(
+    (acc, p) => ({
+      income:     acc.income     + Number(p.total_income),
+      expense:    acc.expense    + Number(p.total_expense),
+      investment: acc.investment + Number(p.total_investment),
+      balance:    acc.balance    + Number(p.balance),
+    }),
+    { income: 0, expense: 0, investment: 0, balance: 0 },
+  );
+
+  const kpi = allMonths
+    ? { income: yearlyTotals.income, expense: yearlyTotals.expense, investment: yearlyTotals.investment, balance: yearlyTotals.balance }
+    : { income: Number(summary?.total_income ?? 0), expense: Number(summary?.total_expense ?? 0), investment: Number(summary?.total_investment ?? 0), balance: Number(summary?.balance ?? 0) };
+
+  // Pie data (monthly only)
   const pieData = summary?.expense_by_category.map((c) => ({
     name: c.name,
     value: Number(c.amount),
@@ -136,41 +183,52 @@ export default function DashboardPage() {
       <Header title="Dashboard" />
 
       {/* Filters */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <Select options={MONTH_OPTIONS} value={month} onChange={(e) => setMonth(Number(e.target.value))} className="w-36" />
         <Select options={YEAR_OPTIONS}  value={year}  onChange={(e) => setYear(Number(e.target.value))}  className="w-28" />
+
+        <div className="ml-auto flex items-center gap-2">
+          <Button variant="secondary" onClick={() => handleExport("xlsx")} disabled={exporting !== null}>
+            {exporting === "xlsx" ? <Spinner className="h-3.5 w-3.5" /> : <Download size={14} />}
+            XLSX
+          </Button>
+          <Button variant="secondary" onClick={() => handleExport("pdf")} disabled={exporting !== null}>
+            {exporting === "pdf" ? <Spinner className="h-3.5 w-3.5" /> : <Download size={14} />}
+            PDF
+          </Button>
+        </div>
       </div>
 
       {loading ? (
         <div className="flex justify-center py-20"><Spinner className="h-8 w-8" /></div>
-      ) : !summary ? null : (
+      ) : (
         <>
           {/* ── KPI row ── */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <KpiCard
               label="Income"
-              value={summary.total_income}
-              delta={delta(summary.total_income, summary.prev_month.total_income)}
+              value={kpi.income}
+              delta={summary ? delta(summary.total_income, summary.prev_month.total_income) : undefined}
               accent={C.success}
             />
             <KpiCard
               label="Expenses"
-              value={summary.total_expense}
-              delta={delta(summary.total_expense, summary.prev_month.total_expense)}
+              value={kpi.expense}
+              delta={summary ? delta(summary.total_expense, summary.prev_month.total_expense) : undefined}
               inverse
               accent={C.danger}
             />
             <KpiCard
               label="Invested"
-              value={summary.total_investment}
-              delta={delta(summary.total_investment, summary.prev_month.total_investment)}
+              value={kpi.investment}
+              delta={summary ? delta(summary.total_investment, summary.prev_month.total_investment) : undefined}
               accent={C.info}
             />
             <KpiCard
               label="Balance"
-              value={summary.balance}
-              delta={delta(summary.balance, summary.prev_month.balance)}
-              accent={Number(summary.balance) >= 0 ? C.success : C.danger}
+              value={kpi.balance}
+              delta={summary ? delta(summary.balance, summary.prev_month.balance) : undefined}
+              accent={kpi.balance >= 0 ? C.success : C.danger}
             />
           </div>
 
@@ -179,7 +237,9 @@ export default function DashboardPage() {
             {/* Expense breakdown pie */}
             <div className="rounded-card border border-border bg-surface p-5">
               <p className="text-xs font-medium text-muted uppercase tracking-wide mb-4">Expenses by category</p>
-              {pieData.length === 0 ? (
+              {allMonths ? (
+                <p className="text-center text-sm text-muted py-10">Select a month to see the category breakdown.</p>
+              ) : pieData.length === 0 ? (
                 <p className="text-center text-sm text-muted py-10">No expenses this month.</p>
               ) : (
                 <div className="flex flex-col gap-3">
@@ -194,7 +254,7 @@ export default function DashboardPage() {
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="flex flex-col gap-1.5">
-                    {summary.expense_by_category.map((c, i) => (
+                    {summary!.expense_by_category.map((c, i) => (
                       <div key={c.category_id} className="flex items-center justify-between text-xs">
                         <span className="flex items-center gap-2">
                           <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
@@ -251,3 +311,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
