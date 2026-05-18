@@ -43,6 +43,9 @@ export default function CategoriesPage() {
   const [editName, setEditName] = useState("");
   const [savingId, setSavingId] = useState<number | null>(null);
 
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [pageError, setPageError] = useState("");
+
   // create modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState<NewForm>(EMPTY_FORM);
@@ -74,10 +77,13 @@ export default function CategoriesPage() {
   async function saveEdit(id: number) {
     if (!editName.trim()) return;
     setSavingId(id);
+    setPageError("");
     try {
       await api.categories.update(id, { name: editName.trim() });
       setEditingId(null);
       load();
+    } catch (err: unknown) {
+      setPageError(err instanceof Error ? err.message : "Failed to rename");
     } finally {
       setSavingId(null);
     }
@@ -85,8 +91,16 @@ export default function CategoriesPage() {
 
   async function handleDelete(id: number) {
     if (!confirm("Delete this category? Transactions using it will lose their category reference.")) return;
-    await api.categories.remove(id);
-    load();
+    setDeletingId(id);
+    setPageError("");
+    try {
+      await api.categories.remove(id);
+      load();
+    } catch (err: unknown) {
+      setPageError(err instanceof Error ? err.message : "Failed to delete");
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   async function handleCreate() {
@@ -117,10 +131,13 @@ export default function CategoriesPage() {
     <div className="flex flex-col gap-5">
       <Header title="Categories" />
 
-      <div className="flex justify-end">
-        <Button onClick={() => { setForm(EMPTY_FORM); setFormError(""); setModalOpen(true); }}>
-          <Plus size={14} /> New category
-        </Button>
+      <div className="flex items-center justify-between">
+        {pageError && <p className="text-sm text-danger">{pageError}</p>}
+        <div className="ml-auto">
+          <Button onClick={() => { setForm(EMPTY_FORM); setFormError(""); setPageError(""); setModalOpen(true); }}>
+            <Plus size={14} /> New category
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -185,9 +202,10 @@ export default function CategoriesPage() {
                                 </button>
                                 <button
                                   onClick={() => handleDelete(cat.id)}
-                                  className="text-muted hover:text-danger transition-colors p-1"
+                                  disabled={deletingId === cat.id}
+                                  className="text-muted hover:text-danger transition-colors p-1 disabled:opacity-40"
                                 >
-                                  <Trash2 size={13} />
+                                  {deletingId === cat.id ? <Spinner className="h-3.5 w-3.5" /> : <Trash2 size={13} />}
                                 </button>
                               </div>
                             )}

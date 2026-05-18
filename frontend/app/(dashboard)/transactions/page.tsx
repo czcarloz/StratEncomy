@@ -145,8 +145,12 @@ export default function TransactionsPage() {
 
   async function handleDelete(id: number) {
     if (!confirm("Delete this transaction?")) return;
-    await api.transactions.remove(id);
-    loadData();
+    try {
+      await api.transactions.remove(id);
+      loadData();
+    } catch {
+      // error is caught to prevent unhandled rejection; user can retry
+    }
   }
 
   const filteredCategories = form.type
