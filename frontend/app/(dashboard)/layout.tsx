@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Spinner } from "@/components/ui/spinner";
+import { ToastContainer } from "@/components/ui/toast";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -32,6 +33,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       <div className="flex flex-1 flex-col overflow-hidden">
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
+      <ToastContainer />
     </div>
   );
 }

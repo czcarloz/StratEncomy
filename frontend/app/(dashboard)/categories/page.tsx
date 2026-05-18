@@ -13,6 +13,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Modal } from "@/components/ui/modal";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { toast } from "@/components/ui/toast";
 
 const TYPE_OPTIONS = [
   { value: "expense",    label: "Expense" },
@@ -44,7 +45,6 @@ export default function CategoriesPage() {
   const [savingId, setSavingId] = useState<number | null>(null);
 
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [pageError, setPageError] = useState("");
 
   // create modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -79,27 +79,26 @@ export default function CategoriesPage() {
   async function saveEdit(id: number) {
     if (!editName.trim()) return;
     setSavingId(id);
-    setPageError("");
     try {
       await api.categories.update(id, { name: editName.trim() });
       setEditingId(null);
       await load();
     } catch (err: unknown) {
-      setPageError(err instanceof Error ? err.message : "Failed to rename");
+      toast.error(err instanceof Error ? err.message : "Failed to rename category");
     } finally {
       setSavingId(null);
     }
   }
 
   async function handleDelete(id: number) {
-    if (!confirm("Delete this category? Transactions using it will lose their category reference.")) return;
+    if (!confirm("Delete this category?")) return;
     setDeletingId(id);
-    setPageError("");
     try {
       await api.categories.remove(id);
       await load();
+      toast.success("Category deleted.");
     } catch (err: unknown) {
-      setPageError(err instanceof Error ? err.message : "Failed to delete");
+      toast.error(err instanceof Error ? err.message : "Failed to delete category");
     } finally {
       setDeletingId(null);
     }
@@ -133,13 +132,10 @@ export default function CategoriesPage() {
     <div className="flex flex-col gap-5">
       <Header title="Categories" />
 
-      <div className="flex items-center justify-between">
-        {pageError && <p className="text-sm text-danger">{pageError}</p>}
-        <div className="ml-auto">
-          <Button onClick={() => { setForm(EMPTY_FORM); setFormError(""); setPageError(""); setModalOpen(true); }}>
-            <Plus size={14} /> New category
-          </Button>
-        </div>
+      <div className="flex justify-end">
+        <Button onClick={() => { setForm(EMPTY_FORM); setFormError(""); setModalOpen(true); }}>
+          <Plus size={14} /> New category
+        </Button>
       </div>
 
       {loading ? (

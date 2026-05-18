@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.core.deps import CurrentUser, DB, TenantID
 from app.models.transaction import Category
@@ -39,7 +40,14 @@ async def update_category(category_id: int, body: CategoryUpdate, db: DB, tenant
 async def delete_category(category_id: int, db: DB, tenant_id: TenantID):
     category = await _get_or_404(db, category_id, tenant_id)
     await db.delete(category)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This category is in use by one or more transactions and cannot be deleted.",
+        )
 
 
 async def _get_or_404(db, category_id: int, tenant_id: int) -> Category:
