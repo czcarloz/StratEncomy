@@ -1,5 +1,5 @@
 import { auth } from "./auth";
-import type { Category, CreditCard, CreditCardPurchase, Invoice, PlannedInvestment, Tenant, Transaction, User } from "@/types";
+import type { Category, CreditCard, CreditCardPurchase, DashboardSummary, Invoice, MonthlyPoint, PlannedInvestment, Tenant, Transaction, User } from "@/types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -126,5 +126,12 @@ export const api = {
         body: JSON.stringify(data),
       }),
     remove: (id: number) => req<void>(`/api/v1/planned-investments/${id}`, { method: "DELETE" }),
+  },
+
+  dashboard: {
+    summary: (month: number, year: number) =>
+      req<DashboardSummary>(`/api/v1/dashboard/summary?month=${month}&year=${year}`),
+    yearly: (year: number) =>
+      req<MonthlyPoint[]>(`/api/v1/dashboard/yearly?year=${year}`),
   },
 };

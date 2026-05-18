@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, FolderPlus, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/auth-context";
 import { formatCurrency, formatDate, MONTHS, TYPE_COLORS, TYPE_LABELS } from "@/lib/utils";
@@ -63,6 +63,8 @@ export default function TransactionsPage() {
   const [form, setForm] = useState<CreateForm>(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
+  const [newCatMode, setNewCatMode] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
 
   const loadData = useCallback(async () => {
     if (!currentTenantId) return;
@@ -89,15 +91,25 @@ export default function TransactionsPage() {
     categories.find((c) => c.id === id)?.name ?? "—";
 
   async function handleCreate() {
-    if (!form.category_id || !form.amount || !form.date) {
-      setFormError("Category, amount and date are required.");
+    const needsNewCat = newCatMode && newCatName.trim();
+    if (!needsNewCat && !form.category_id) {
+      setFormError("Select or create a category.");
+      return;
+    }
+    if (!form.amount || !form.date) {
+      setFormError("Amount and date are required.");
       return;
     }
     setFormError("");
     setSubmitting(true);
     try {
+      let categoryId = Number(form.category_id);
+      if (needsNewCat) {
+        const cat = await api.categories.create({ name: newCatName.trim(), type: form.type });
+        categoryId = cat.id;
+      }
       await api.transactions.create({
-        category_id: Number(form.category_id),
+        category_id: categoryId,
         type:        form.type,
         amount:      form.amount,
         description: form.description || undefined,
@@ -105,6 +117,8 @@ export default function TransactionsPage() {
       });
       setModalOpen(false);
       setForm(EMPTY_FORM);
+      setNewCatMode(false);
+      setNewCatName("");
       loadData();
     } catch (err: unknown) {
       setFormError(err instanceof Error ? err.message : "Failed to create");
@@ -133,7 +147,7 @@ export default function TransactionsPage() {
         <Select options={YEAR_OPTIONS}  value={filterYear}  onChange={(e) => setFilterYear(e.target.value)}  className="w-28" />
         <Select options={TYPE_OPTIONS}  value={filterType}  onChange={(e) => setFilterType(e.target.value)}  className="w-36" />
         <div className="ml-auto">
-          <Button onClick={() => { setForm(EMPTY_FORM); setFormError(""); setModalOpen(true); }}>
+          <Button onClick={() => { setForm(EMPTY_FORM); setFormError(""); setNewCatMode(false); setNewCatName(""); setModalOpen(true); }}>
             <Plus size={14} /> New transaction
           </Button>
         </div>
@@ -200,13 +214,31 @@ export default function TransactionsPage() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label>Category</Label>
-            <Select
-              options={filteredCategories.map((c) => ({ value: c.id, label: c.name }))}
-              placeholder="Select category"
-              value={form.category_id}
-              onChange={(e) => setForm((f) => ({ ...f, category_id: e.target.value }))}
-            />
+            <div className="flex items-center justify-between">
+              <Label>Category</Label>
+              <button
+                type="button"
+                onClick={() => { setNewCatMode((v) => !v); setNewCatName(""); setForm((f) => ({ ...f, category_id: "" })); }}
+                className="flex items-center gap-1 text-xs text-primary hover:text-primary-hover transition-colors"
+              >
+                {newCatMode ? <><X size={11} /> Use existing</> : <><FolderPlus size={11} /> New category</>}
+              </button>
+            </div>
+            {newCatMode ? (
+              <Input
+                placeholder="Category name…"
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
+                autoFocus
+              />
+            ) : (
+              <Select
+                options={filteredCategories.map((c) => ({ value: c.id, label: c.name }))}
+                placeholder="Select category"
+                value={form.category_id}
+                onChange={(e) => setForm((f) => ({ ...f, category_id: e.target.value }))}
+              />
+            )}
           </div>
 
           <div className="flex flex-col gap-2">
