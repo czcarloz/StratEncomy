@@ -5,14 +5,16 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend,
 } from "recharts";
-import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Download } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/auth-context";
 import { formatCurrency, MONTHS } from "@/lib/utils";
+import { downloadBlob } from "@/lib/download";
 import type { DashboardSummary, MonthlyPoint } from "@/types";
 import { Header } from "@/components/layout/header";
 import { Select } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
+import { Button } from "@/components/ui/button";
 
 // ── Design tokens (match tailwind config) ──────────────────────────────────
 const C = {
@@ -98,6 +100,7 @@ export default function DashboardPage() {
   const [summary, setSummary]     = useState<DashboardSummary | null>(null);
   const [yearly, setYearly]       = useState<MonthlyPoint[]>([]);
   const [loading, setLoading]     = useState(true);
+  const [exporting, setExporting] = useState<"pdf" | "xlsx" | null>(null);
 
   const load = useCallback(async () => {
     if (!currentTenantId) return;
@@ -115,6 +118,17 @@ export default function DashboardPage() {
   }, [currentTenantId, month, year]);
 
   useEffect(() => { load(); }, [load]);
+
+  async function handleExport(format: "pdf" | "xlsx") {
+    setExporting(format);
+    try {
+      const blob = await api.reports.download(format, month, year);
+      const ext = format === "pdf" ? "pdf" : "xlsx";
+      downloadBlob(blob, `transactions_${year}_${String(month).padStart(2, "0")}.${ext}`);
+    } finally {
+      setExporting(null);
+    }
+  }
 
   // Yearly chart data
   const yearlyData = yearly.map((p) => ({
@@ -136,9 +150,19 @@ export default function DashboardPage() {
       <Header title="Dashboard" />
 
       {/* Filters */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <Select options={MONTH_OPTIONS} value={month} onChange={(e) => setMonth(Number(e.target.value))} className="w-36" />
         <Select options={YEAR_OPTIONS}  value={year}  onChange={(e) => setYear(Number(e.target.value))}  className="w-28" />
+        <div className="ml-auto flex items-center gap-2">
+          <Button variant="secondary" onClick={() => handleExport("xlsx")} disabled={exporting !== null}>
+            {exporting === "xlsx" ? <Spinner className="h-3.5 w-3.5" /> : <Download size={14} />}
+            XLSX
+          </Button>
+          <Button variant="secondary" onClick={() => handleExport("pdf")} disabled={exporting !== null}>
+            {exporting === "pdf" ? <Spinner className="h-3.5 w-3.5" /> : <Download size={14} />}
+            PDF
+          </Button>
+        </div>
       </div>
 
       {loading ? (
