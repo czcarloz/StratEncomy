@@ -74,6 +74,39 @@ export interface Invoice {
   items: InvoiceItem[];
 }
 
+export interface CategoryBreakdown {
+  category_id: number;
+  name: string;
+  amount: string;
+  percentage: number;
+}
+
+export interface MonthTotals {
+  total_income: string;
+  total_expense: string;
+  total_investment: string;
+  balance: string;
+}
+
+export interface DashboardSummary {
+  month: number;
+  year: number;
+  total_income: string;
+  total_expense: string;
+  total_investment: string;
+  balance: string;
+  expense_by_category: CategoryBreakdown[];
+  prev_month: MonthTotals;
+}
+
+export interface MonthlyPoint {
+  month: number;
+  total_income: string;
+  total_expense: string;
+  total_investment: string;
+  balance: string;
+}
+
 export interface PlannedInvestment {
   id: number;
   tenant_id: number;

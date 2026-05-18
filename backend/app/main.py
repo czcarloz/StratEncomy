@@ -8,6 +8,7 @@ from app.api.v1.categories import router as categories_router
 from app.api.v1.transactions import router as transactions_router
 from app.api.v1.credit_cards import router as credit_cards_router
 from app.api.v1.planned_investments import router as planned_investments_router
+from app.api.v1.dashboard import router as dashboard_router
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -31,6 +32,7 @@ app.include_router(categories_router, prefix="/api/v1")
 app.include_router(transactions_router, prefix="/api/v1")
 app.include_router(credit_cards_router, prefix="/api/v1")
 app.include_router(planned_investments_router, prefix="/api/v1")
+app.include_router(dashboard_router, prefix="/api/v1")
 
 
 @app.get("/health", tags=["status"])
