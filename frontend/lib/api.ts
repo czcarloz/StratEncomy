@@ -1,5 +1,5 @@
 import { auth } from "./auth";
-import type { Category, CreditCard, CreditCardPurchase, DashboardSummary, Invoice, MonthlyPoint, PlannedInvestment, Tenant, Transaction, User } from "@/types";
+import type { AuditLog, Category, CreditCard, CreditCardPurchase, DashboardSummary, Invoice, MonthlyPoint, PlannedInvestment, Tenant, Transaction, User } from "@/types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -155,5 +155,16 @@ export const api = {
       req<DashboardSummary>(`/api/v1/dashboard/summary?month=${month}&year=${year}`),
     yearly: (year: number) =>
       req<MonthlyPoint[]>(`/api/v1/dashboard/yearly?year=${year}`),
+  },
+
+  admin: {
+    auditLog: (params: { page?: number; action?: string; user_id?: number; tenant_id?: number }) => {
+      const qs = new URLSearchParams();
+      if (params.page) qs.set("page", String(params.page));
+      if (params.action) qs.set("action", params.action);
+      if (params.user_id) qs.set("user_id", String(params.user_id));
+      if (params.tenant_id) qs.set("tenant_id", String(params.tenant_id));
+      return req<AuditLog[]>(`/api/v1/admin/audit-log?${qs}`);
+    },
   },
 };

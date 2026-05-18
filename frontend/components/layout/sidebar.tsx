@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ArrowLeftRight, CreditCard, TrendingUp, LogOut, Tag } from "lucide-react";
+import { LayoutDashboard, ArrowLeftRight, CreditCard, TrendingUp, LogOut, Tag, ScrollText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 
@@ -18,6 +18,10 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
 
+  const navItems = user?.role === "admin"
+    ? [...NAV, { href: "/audit", label: "Audit Log", icon: ScrollText }]
+    : NAV;
+
   return (
     <aside className="flex h-screen w-56 flex-col border-r border-border bg-bg px-3 py-5">
       <div className="mb-6 px-2">
@@ -25,7 +29,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex flex-1 flex-col gap-0.5">
-        {NAV.map(({ href, label, icon: Icon }) => (
+        {navItems.map(({ href, label, icon: Icon }) => (
           <Link
             key={href}
             href={href}

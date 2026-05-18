@@ -1,7 +1,10 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from jose import JWTError
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import select
 
 from app.core.deps import AdminUser, CurrentUser, DB
@@ -21,12 +24,15 @@ from app.schemas.auth import (
     UserCreate,
     UserRead,
 )
+from app.services.audit import client_ip, log as audit
 
+limiter = Limiter(key_func=get_remote_address)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-async def register(body: UserCreate, db: DB, _: AdminUser):
+@limiter.limit("10/hour")
+async def register(request: Request, body: UserCreate, db: DB, admin: AdminUser):
     existing = await db.scalar(select(User).where(User.email == body.email))
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -37,16 +43,23 @@ async def register(body: UserCreate, db: DB, _: AdminUser):
         role=UserRole(body.role),
     )
     db.add(user)
+    await db.flush()
+    await audit(db, "user.register", user_id=admin.id, entity="user", entity_id=user.id,
+                payload={"email": body.email, "role": body.role}, ip=client_ip(request))
     await db.commit()
     await db.refresh(user)
     return user
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(body: UserCreate, db: DB):
+@limiter.limit("15/minute")
+async def login(request: Request, body: UserCreate, db: DB):
     user = await db.scalar(select(User).where(User.email == body.email))
 
     if not user or not user.is_active:
+        await audit(db, "auth.login_fail", payload={"email": body.email, "reason": "unknown_user"},
+                    ip=client_ip(request))
+        await db.commit()
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     if user.locked_until and user.locked_until > datetime.now(UTC):
@@ -55,8 +68,9 @@ async def login(body: UserCreate, db: DB):
     if not verify_password(body.password, user.password_hash):
         user.failed_login_attempts += 1
         if user.failed_login_attempts >= 5:
-            from datetime import timedelta
             user.locked_until = datetime.now(UTC) + timedelta(minutes=15)
+        await audit(db, "auth.login_fail", user_id=user.id,
+                    payload={"attempts": user.failed_login_attempts}, ip=client_ip(request))
         await db.commit()
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
@@ -64,14 +78,14 @@ async def login(body: UserCreate, db: DB):
     user.locked_until = None
 
     raw_refresh = create_refresh_token(user.id)
-    from hashlib import sha256
     token_hash = sha256(raw_refresh.encode()).hexdigest()
-    from datetime import timedelta
     db.add(RefreshToken(
         user_id=user.id,
         token_hash=token_hash,
         expires_at=datetime.now(UTC) + timedelta(days=7),
     ))
+    await audit(db, "auth.login", user_id=user.id, entity="user", entity_id=user.id,
+                ip=client_ip(request))
     await db.commit()
 
     return TokenResponse(
@@ -81,7 +95,8 @@ async def login(body: UserCreate, db: DB):
 
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh(body: RefreshRequest, db: DB):
+@limiter.limit("30/minute")
+async def refresh(request: Request, body: RefreshRequest, db: DB):
     credentials_exc = HTTPException(status_code=401, detail="Invalid or expired refresh token")
     try:
         payload = decode_token(body.refresh_token)
@@ -91,7 +106,6 @@ async def refresh(body: RefreshRequest, db: DB):
     except (JWTError, KeyError, ValueError):
         raise credentials_exc
 
-    from hashlib import sha256
     token_hash = sha256(body.refresh_token.encode()).hexdigest()
     stored = await db.scalar(
         select(RefreshToken).where(
@@ -110,12 +124,13 @@ async def refresh(body: RefreshRequest, db: DB):
 
     raw_refresh = create_refresh_token(user.id)
     new_hash = sha256(raw_refresh.encode()).hexdigest()
-    from datetime import timedelta
     db.add(RefreshToken(
         user_id=user.id,
         token_hash=new_hash,
         expires_at=datetime.now(UTC) + timedelta(days=7),
     ))
+    await audit(db, "auth.refresh", user_id=user.id, entity="user", entity_id=user.id,
+                ip=client_ip(request))
     await db.commit()
 
     return TokenResponse(
@@ -125,14 +140,15 @@ async def refresh(body: RefreshRequest, db: DB):
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(body: RefreshRequest, db: DB):
-    from hashlib import sha256
+async def logout(request: Request, body: RefreshRequest, db: DB):
     token_hash = sha256(body.refresh_token.encode()).hexdigest()
     stored = await db.scalar(
         select(RefreshToken).where(RefreshToken.token_hash == token_hash)
     )
     if stored:
         stored.revoked = True
+        await audit(db, "auth.logout", user_id=stored.user_id, entity="user",
+                    entity_id=stored.user_id, ip=client_ip(request))
         await db.commit()
 
 
@@ -141,7 +157,7 @@ async def me(current_user: CurrentUser):
     return current_user
 
 
-# --- Tenant management (admin only) ---
+# ── Tenant management (admin only) ────────────────────────────────────────────
 
 tenants_router = APIRouter(prefix="/tenants", tags=["tenants"])
 
@@ -153,11 +169,13 @@ async def list_tenants(db: DB, _: AdminUser):
 
 
 @tenants_router.post("", response_model=TenantRead, status_code=status.HTTP_201_CREATED)
-async def create_tenant(body: TenantCreate, db: DB, admin: AdminUser):
+async def create_tenant(request: Request, body: TenantCreate, db: DB, admin: AdminUser):
     tenant = Tenant(name=body.name, owner_user_id=admin.id)
     db.add(tenant)
     await db.flush()
     db.add(UserTenantAccess(user_id=admin.id, tenant_id=tenant.id, role=UserRole.admin))
+    await audit(db, "tenant.create", user_id=admin.id, entity="tenant", entity_id=tenant.id,
+                payload={"name": body.name}, ip=client_ip(request))
     await db.commit()
     await db.refresh(tenant)
     return tenant

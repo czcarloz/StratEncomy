@@ -118,3 +118,15 @@ export interface PlannedInvestment {
   created_by: number;
   created_at: string;
 }
+
+export interface AuditLog {
+  id: number;
+  user_id: number | null;
+  tenant_id: number | null;
+  action: string;
+  entity: string | null;
+  entity_id: number | null;
+  payload_json: Record<string, unknown> | null;
+  ip: string | null;
+  ts: string;
+}
