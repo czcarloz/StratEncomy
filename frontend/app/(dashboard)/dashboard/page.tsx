@@ -124,6 +124,8 @@ export default function DashboardPage() {
         setSummary(s);
         setYearly(y);
       }
+    } catch {
+      // network error
     } finally {
       setLoading(false);
     }
@@ -139,6 +141,8 @@ export default function DashboardPage() {
       const ext = format === "pdf" ? "pdf" : "xlsx";
       const suffix = monthParam ? `${year}_${String(monthParam).padStart(2, "0")}` : String(year);
       downloadBlob(blob, `transactions_${suffix}.${ext}`);
+    } catch {
+      // export failed silently
     } finally {
       setExporting(null);
     }

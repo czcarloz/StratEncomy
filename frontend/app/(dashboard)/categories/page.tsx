@@ -57,6 +57,8 @@ export default function CategoriesPage() {
     setLoading(true);
     try {
       setCategories(await api.categories.list());
+    } catch {
+      // network error — user can refresh manually
     } finally {
       setLoading(false);
     }
@@ -81,7 +83,7 @@ export default function CategoriesPage() {
     try {
       await api.categories.update(id, { name: editName.trim() });
       setEditingId(null);
-      load();
+      await load();
     } catch (err: unknown) {
       setPageError(err instanceof Error ? err.message : "Failed to rename");
     } finally {
@@ -95,7 +97,7 @@ export default function CategoriesPage() {
     setPageError("");
     try {
       await api.categories.remove(id);
-      load();
+      await load();
     } catch (err: unknown) {
       setPageError(err instanceof Error ? err.message : "Failed to delete");
     } finally {

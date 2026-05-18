@@ -111,6 +111,7 @@ function CardDetail({ card, onBack, onDeleteCard }: { card: CreditCard; onBack: 
   const loadInvoice = useCallback(async () => {
     setLoadingInvoice(true);
     try { setInvoice(await api.creditCards.invoice(card.id, month, year)); }
+    catch { /* network error */ }
     finally { setLoadingInvoice(false); }
   }, [card.id, month, year]);
 
@@ -118,8 +119,10 @@ function CardDetail({ card, onBack, onDeleteCard }: { card: CreditCard; onBack: 
 
   async function handleDeletePurchase(purchaseId: number) {
     if (!confirm("Remove this purchase?")) return;
-    await api.creditCards.removePurchase(card.id, purchaseId);
-    loadInvoice();
+    try {
+      await api.creditCards.removePurchase(card.id, purchaseId);
+      await loadInvoice();
+    } catch { /* network error */ }
   }
 
   return (
@@ -205,6 +208,7 @@ export default function CreditCardsPage() {
     if (!currentTenantId) return;
     setLoading(true);
     try { setCards(await api.creditCards.list()); }
+    catch { /* network error */ }
     finally { setLoading(false); }
   }, [currentTenantId]);
 
@@ -212,9 +216,11 @@ export default function CreditCardsPage() {
 
   async function handleDeleteCard(card: CreditCard) {
     if (!confirm(`Delete card "${card.name}"? All purchases will be removed.`)) return;
-    await api.creditCards.remove(card.id);
-    setSelectedCard(null);
-    loadCards();
+    try {
+      await api.creditCards.remove(card.id);
+      setSelectedCard(null);
+      await loadCards();
+    } catch { /* network error */ }
   }
 
   if (selectedCard) {

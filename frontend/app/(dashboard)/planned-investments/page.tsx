@@ -48,6 +48,8 @@ export default function PlannedInvestmentsPage() {
         month: filterMonth ? Number(filterMonth) : undefined,
         year:  filterYear  ? Number(filterYear)  : undefined,
       }));
+    } catch {
+      // network error
     } finally { setLoading(false); }
   }, [currentTenantId, filterMonth, filterYear]);
 

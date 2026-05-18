@@ -82,6 +82,8 @@ export default function TransactionsPage() {
       ]);
       setTransactions(txs);
       setCategories(cats);
+    } catch {
+      // network error
     } finally {
       setLoading(false);
     }
@@ -147,9 +149,9 @@ export default function TransactionsPage() {
     if (!confirm("Delete this transaction?")) return;
     try {
       await api.transactions.remove(id);
-      loadData();
+      await loadData();
     } catch {
-      // error is caught to prevent unhandled rejection; user can retry
+      // network error — user can retry
     }
   }
 
