@@ -122,7 +122,7 @@ export default function DashboardPage() {
   async function handleExport(format: "pdf" | "xlsx") {
     setExporting(format);
     try {
-      const blob = await api.reports.download(format, month, year);
+      const blob = await api.reports.download(format, year, month);
       const ext = format === "pdf" ? "pdf" : "xlsx";
       downloadBlob(blob, `transactions_${year}_${String(month).padStart(2, "0")}.${ext}`);
     } finally {

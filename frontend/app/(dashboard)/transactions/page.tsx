@@ -130,12 +130,14 @@ export default function TransactionsPage() {
   }
 
   async function handleExport(format: "pdf" | "xlsx") {
-    if (!filterMonth || !filterYear) return;
     setExporting(format);
+    const month = filterMonth ? Number(filterMonth) : undefined;
+    const year = Number(filterYear);
     try {
-      const blob = await api.reports.download(format, Number(filterMonth), Number(filterYear));
+      const blob = await api.reports.download(format, year, month);
       const ext = format === "pdf" ? "pdf" : "xlsx";
-      downloadBlob(blob, `transactions_${filterYear}_${filterMonth.padStart(2, "0")}.${ext}`);
+      const suffix = month ? `${year}_${String(month).padStart(2, "0")}` : String(year);
+      downloadBlob(blob, `transactions_${suffix}.${ext}`);
     } finally {
       setExporting(null);
     }
@@ -164,7 +166,7 @@ export default function TransactionsPage() {
           <Button
             variant="secondary"
             onClick={() => handleExport("xlsx")}
-            disabled={exporting !== null || !filterMonth}
+            disabled={exporting !== null}
             title="Export XLSX"
           >
             {exporting === "xlsx" ? <Spinner className="h-3.5 w-3.5" /> : <Download size={14} />}
@@ -173,7 +175,7 @@ export default function TransactionsPage() {
           <Button
             variant="secondary"
             onClick={() => handleExport("pdf")}
-            disabled={exporting !== null || !filterMonth}
+            disabled={exporting !== null}
             title="Export PDF"
           >
             {exporting === "pdf" ? <Spinner className="h-3.5 w-3.5" /> : <Download size={14} />}

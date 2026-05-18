@@ -136,13 +136,14 @@ export const api = {
   },
 
   reports: {
-    download: async (format: "pdf" | "xlsx", month: number, year: number): Promise<Blob> => {
+    download: async (format: "pdf" | "xlsx", year: number, month?: number): Promise<Blob> => {
       const token = auth.getToken();
       const tenantId = auth.getTenantId();
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
       if (tenantId) headers["X-Tenant-ID"] = String(tenantId);
-      const qs = new URLSearchParams({ format, month: String(month), year: String(year) });
+      const qs = new URLSearchParams({ format, year: String(year) });
+      if (month) qs.set("month", String(month));
       const res = await fetch(`${BASE}/api/v1/reports/transactions?${qs}`, { headers });
       if (!res.ok) throw new Error("Export failed");
       return res.blob();

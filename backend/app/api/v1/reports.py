@@ -34,9 +34,18 @@ async def export_transactions(
     db: DB,
     tenant_id: TenantID,
     format: Literal["pdf", "xlsx"] = Query(..., description="pdf or xlsx"),
-    month: int = Query(..., ge=1, le=12),
     year: int = Query(..., ge=2000, le=2100),
+    month: int | None = Query(None, ge=1, le=12),
 ):
+    def _base_filters():
+        filters = [
+            Transaction.tenant_id == tenant_id,
+            extract("year", Transaction.date) == year,
+        ]
+        if month is not None:
+            filters.append(extract("month", Transaction.date) == month)
+        return filters
+
     # ── Totals ────────────────────────────────────────────────────────────────
     totals_row = (
         await db.execute(
@@ -53,11 +62,7 @@ async def export_transactions(
                     func.sum(case((Transaction.type == TransactionType.investment, Transaction.amount), else_=0)),
                     Decimal("0"),
                 ).label("investment"),
-            ).where(
-                Transaction.tenant_id == tenant_id,
-                extract("month", Transaction.date) == month,
-                extract("year", Transaction.date) == year,
-            )
+            ).where(*_base_filters())
         )
     ).one()
 
@@ -74,12 +79,7 @@ async def export_transactions(
                 func.sum(Transaction.amount).label("total"),
             )
             .join(Category, Category.id == Transaction.category_id)
-            .where(
-                Transaction.tenant_id == tenant_id,
-                Transaction.type == TransactionType.expense,
-                extract("month", Transaction.date) == month,
-                extract("year", Transaction.date) == year,
-            )
+            .where(*_base_filters(), Transaction.type == TransactionType.expense)
             .group_by(Category.name)
             .order_by(func.sum(Transaction.amount).desc())
         )
@@ -106,11 +106,7 @@ async def export_transactions(
                 Category.name.label("category_name"),
             )
             .join(Category, Category.id == Transaction.category_id)
-            .where(
-                Transaction.tenant_id == tenant_id,
-                extract("month", Transaction.date) == month,
-                extract("year", Transaction.date) == year,
-            )
+            .where(*_base_filters())
             .order_by(Transaction.date.desc())
         )
     ).all()
@@ -126,8 +122,11 @@ async def export_transactions(
         for r in tx_rows
     ]
 
+    period_label = f"{MONTH_NAMES[month - 1]} {year}" if month else str(year)
+    filename_base = f"transactions_{year}_{month:02d}" if month else f"transactions_{year}"
+
     data = ReportData(
-        month_label=f"{MONTH_NAMES[month - 1]} {year}",
+        month_label=period_label,
         total_income=income,
         total_expense=expense,
         total_investment=investment,
@@ -139,11 +138,11 @@ async def export_transactions(
     if format == "pdf":
         content = generate_pdf(data)
         media_type = "application/pdf"
-        filename = f"transactions_{year}_{month:02d}.pdf"
+        filename = f"{filename_base}.pdf"
     else:
         content = generate_xlsx(data)
         media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        filename = f"transactions_{year}_{month:02d}.xlsx"
+        filename = f"{filename_base}.xlsx"
 
     return StreamingResponse(
         io.BytesIO(content),
