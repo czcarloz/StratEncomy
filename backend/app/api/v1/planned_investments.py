@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from sqlalchemy import select
 
 from app.core.deps import CurrentUser, DB, TenantID
@@ -8,6 +8,7 @@ from app.schemas.planned_investment import (
     PlannedInvestmentOut,
     PlannedInvestmentUpdate,
 )
+from app.services.audit import client_ip, log as audit
 
 router = APIRouter(prefix="/planned-investments", tags=["planned-investments"])
 
@@ -31,10 +32,16 @@ async def list_planned(
 
 @router.post("", response_model=PlannedInvestmentOut, status_code=status.HTTP_201_CREATED)
 async def create_planned(
-    body: PlannedInvestmentCreate, db: DB, user: CurrentUser, tenant_id: TenantID
+    request: Request, body: PlannedInvestmentCreate, db: DB, user: CurrentUser, tenant_id: TenantID
 ):
     entry = PlannedInvestment(**body.model_dump(), tenant_id=tenant_id, created_by=user.id)
     db.add(entry)
+    await db.flush()
+    await audit(db, "planned_investment.create", user_id=user.id, tenant_id=tenant_id,
+                entity="planned_investment", entity_id=entry.id,
+                payload={"asset": body.asset_label, "amount": str(body.amount_planned),
+                         "month": body.month, "year": body.year},
+                ip=client_ip(request))
     await db.commit()
     await db.refresh(entry)
     return entry
@@ -42,22 +49,30 @@ async def create_planned(
 
 @router.put("/{entry_id}", response_model=PlannedInvestmentOut)
 async def update_planned(
-    entry_id: int, body: PlannedInvestmentUpdate, db: DB, tenant_id: TenantID
+    request: Request, entry_id: int, body: PlannedInvestmentUpdate, db: DB,
+    user: CurrentUser, tenant_id: TenantID
 ):
     entry = await db.get(PlannedInvestment, entry_id)
     if not entry or entry.tenant_id != tenant_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Entry not found")
-    for field, value in body.model_dump(exclude_none=True).items():
+    data = body.model_dump(exclude_none=True)
+    for field, value in data.items():
         setattr(entry, field, value)
+    await audit(db, "planned_investment.update", user_id=user.id, tenant_id=tenant_id,
+                entity="planned_investment", entity_id=entry_id,
+                payload={k: str(v) for k, v in data.items()}, ip=client_ip(request))
     await db.commit()
     await db.refresh(entry)
     return entry
 
 
 @router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_planned(entry_id: int, db: DB, tenant_id: TenantID):
+async def delete_planned(request: Request, entry_id: int, db: DB, user: CurrentUser, tenant_id: TenantID):
     entry = await db.get(PlannedInvestment, entry_id)
     if not entry or entry.tenant_id != tenant_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Entry not found")
+    await audit(db, "planned_investment.delete", user_id=user.id, tenant_id=tenant_id,
+                entity="planned_investment", entity_id=entry_id,
+                payload={"asset": entry.asset_label}, ip=client_ip(request))
     await db.delete(entry)
     await db.commit()
