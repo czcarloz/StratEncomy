@@ -16,6 +16,7 @@ from app.api.v1.planned_investments import router as planned_investments_router
 from app.api.v1.dashboard import router as dashboard_router
 from app.api.v1.reports import router as reports_router
 from app.api.v1.admin import router as admin_router
+from app.api.v1.portfolios import router as portfolios_router
 
 # ── Rate limiter (in-memory, resets on restart) ───────────────────────────────
 limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
@@ -63,8 +64,9 @@ app.include_router(planned_investments_router, prefix="/api/v1")
 app.include_router(dashboard_router, prefix="/api/v1")
 app.include_router(reports_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
+app.include_router(portfolios_router, prefix="/api/v1")
 
 
 @app.get("/health", tags=["status"])
 async def health_check():
-    return {"status": "ok", "version": "0.3.0", "environment": settings.ENVIRONMENT}
+    return {"status": "ok", "version": "0.4.0", "environment": settings.ENVIRONMENT}

@@ -1,5 +1,5 @@
 import { auth } from "./auth";
-import type { AuditLog, Category, CreditCard, CreditCardPurchase, DashboardSummary, Invoice, MonthlyPoint, PlannedInvestment, Tenant, Transaction, User } from "@/types";
+import type { Asset, AssetPosition, AuditLog, Category, CreditCard, CreditCardPurchase, DashboardSummary, Dividend, Invoice, MonthlyPoint, Operation, PlannedInvestment, Portfolio, PortfolioPosition, Tenant, Transaction, User } from "@/types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -155,6 +155,41 @@ export const api = {
       req<DashboardSummary>(`/api/v1/dashboard/summary?month=${month}&year=${year}`),
     yearly: (year: number) =>
       req<MonthlyPoint[]>(`/api/v1/dashboard/yearly?year=${year}`),
+  },
+
+  portfolios: {
+    list: () => req<Portfolio[]>("/api/v1/portfolios"),
+    create: (data: { name: string; description?: string }) =>
+      req<Portfolio>("/api/v1/portfolios", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: number, data: { name?: string; description?: string }) =>
+      req<Portfolio>(`/api/v1/portfolios/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    remove: (id: number) => req<void>(`/api/v1/portfolios/${id}`, { method: "DELETE" }),
+    position: (id: number) => req<PortfolioPosition>(`/api/v1/portfolios/${id}/position`),
+
+    assets: (portfolioId: number) => req<Asset[]>(`/api/v1/portfolios/${portfolioId}/assets`),
+    addAsset: (portfolioId: number, data: { ticker: string; name?: string; asset_class?: string }) =>
+      req<Asset>(`/api/v1/portfolios/${portfolioId}/assets`, { method: "POST", body: JSON.stringify(data) }),
+    removeAsset: (portfolioId: number, assetId: number) =>
+      req<void>(`/api/v1/portfolios/${portfolioId}/assets/${assetId}`, { method: "DELETE" }),
+
+    operations: (portfolioId: number, assetId: number) =>
+      req<Operation[]>(`/api/v1/portfolios/${portfolioId}/assets/${assetId}/operations`),
+    addOperation: (portfolioId: number, assetId: number, data: {
+      type: string; quantity: string; unit_price: string; date: string; broker?: string; note?: string;
+    }) =>
+      req<Operation>(`/api/v1/portfolios/${portfolioId}/assets/${assetId}/operations`, {
+        method: "POST", body: JSON.stringify(data),
+      }),
+    removeOperation: (portfolioId: number, assetId: number, opId: number) =>
+      req<void>(`/api/v1/portfolios/${portfolioId}/assets/${assetId}/operations/${opId}`, { method: "DELETE" }),
+
+    dividends: (portfolioId: number) => req<Dividend[]>(`/api/v1/portfolios/${portfolioId}/dividends`),
+    addDividend: (portfolioId: number, assetId: number, data: { amount: string; date: string; note?: string }) =>
+      req<Dividend>(`/api/v1/portfolios/${portfolioId}/assets/${assetId}/dividends`, {
+        method: "POST", body: JSON.stringify(data),
+      }),
+    removeDividend: (portfolioId: number, divId: number) =>
+      req<void>(`/api/v1/portfolios/${portfolioId}/dividends/${divId}`, { method: "DELETE" }),
   },
 
   admin: {

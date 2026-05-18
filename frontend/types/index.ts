@@ -119,6 +119,72 @@ export interface PlannedInvestment {
   created_at: string;
 }
 
+export type AssetClass = "stock" | "fii" | "etf" | "bdr" | "bond" | "crypto" | "other";
+export type OperationType = "buy" | "sell";
+
+export interface Portfolio {
+  id: number;
+  tenant_id: number;
+  name: string;
+  description: string | null;
+  created_at: string;
+}
+
+export interface Asset {
+  id: number;
+  portfolio_id: number;
+  tenant_id: number;
+  ticker: string;
+  name: string | null;
+  asset_class: AssetClass;
+  created_at: string;
+}
+
+export interface Operation {
+  id: number;
+  asset_id: number;
+  portfolio_id: number;
+  tenant_id: number;
+  type: OperationType;
+  quantity: string;
+  unit_price: string;
+  total_amount: string;
+  date: string;
+  broker: string | null;
+  note: string | null;
+  created_at: string;
+}
+
+export interface Dividend {
+  id: number;
+  asset_id: number;
+  portfolio_id: number;
+  tenant_id: number;
+  amount: string;
+  date: string;
+  note: string | null;
+  created_at: string;
+}
+
+export interface AssetPosition {
+  asset_id: number;
+  ticker: string;
+  name: string | null;
+  asset_class: AssetClass;
+  quantity: string;
+  avg_price: string;
+  total_invested: string;
+  total_dividends: string;
+}
+
+export interface PortfolioPosition {
+  portfolio_id: number;
+  name: string;
+  total_invested: string;
+  total_dividends: string;
+  positions: AssetPosition[];
+}
+
 export interface AuditLog {
   id: number;
   user_id: number | null;
