@@ -1,7 +1,8 @@
-"""Transactions export — PDF and XLSX."""
+"""Transactions and portfolio export — PDF and XLSX."""
 from __future__ import annotations
 
 import calendar
+from datetime import date as date_type
 from decimal import Decimal
 from typing import Literal
 
@@ -13,11 +14,18 @@ from sqlalchemy import extract, func, case, select
 
 from app.core.deps import DB, TenantID
 from app.models.transaction import Category, Transaction, TransactionType
+from app.models.portfolio import Asset, Dividend, InvestmentTransaction, OperationType, Portfolio
 from app.services.report_service import (
+    AllocationRow,
     CategoryRow,
+    DividendRow,
+    PortfolioReportData,
+    PositionRow,
     ReportData,
     TransactionRow,
     generate_pdf,
+    generate_portfolio_pdf,
+    generate_portfolio_xlsx,
     generate_xlsx,
 )
 
@@ -143,6 +151,101 @@ async def export_transactions(
         content = generate_xlsx(data)
         media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         filename = f"{filename_base}.xlsx"
+
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/portfolio")
+async def export_portfolio(
+    db: DB,
+    tenant_id: TenantID,
+    portfolio_id: int = Query(...),
+    format: Literal["pdf", "xlsx"] = Query(...),
+):
+    portfolio = await db.get(Portfolio, portfolio_id)
+    if not portfolio or portfolio.tenant_id != tenant_id:
+        raise HTTPException(404, "Portfolio not found")
+
+    assets = (await db.scalars(select(Asset).where(Asset.portfolio_id == portfolio_id))).all()
+
+    positions: list[PositionRow] = []
+    all_dividends: list[DividendRow] = []
+    class_totals: dict[str, Decimal] = {}
+    total_invested = Decimal("0")
+    total_dividends_sum = Decimal("0")
+
+    for asset in assets:
+        ops = (await db.scalars(select(InvestmentTransaction).where(InvestmentTransaction.asset_id == asset.id))).all()
+        divs = (await db.scalars(select(Dividend).where(Dividend.asset_id == asset.id))).all()
+
+        qty = Decimal("0")
+        cost = Decimal("0")
+        for op in sorted(ops, key=lambda o: o.date):
+            if op.type == OperationType.buy:
+                cost += op.quantity * op.unit_price
+                qty += op.quantity
+            else:
+                if qty > 0:
+                    avg = cost / qty
+                    cost -= op.quantity * avg
+                    qty -= op.quantity
+                    if qty <= 0:
+                        qty = Decimal("0"); cost = Decimal("0")
+
+        avg_price = (cost / qty).quantize(Decimal("0.00000001")) if qty > 0 else Decimal("0")
+        invested = (qty * avg_price).quantize(Decimal("0.01"))
+        asset_divs = sum((d.amount for d in divs), Decimal("0"))
+
+        if qty > 0 or asset_divs > 0:
+            positions.append(PositionRow(
+                ticker=asset.ticker, name=asset.name or "",
+                asset_class=asset.asset_class.value,
+                quantity=qty, avg_price=avg_price,
+                total_invested=invested, total_dividends=asset_divs,
+            ))
+            cls = asset.asset_class.value
+            class_totals[cls] = class_totals.get(cls, Decimal("0")) + invested
+            total_invested += invested
+            total_dividends_sum += asset_divs
+
+        for div in sorted(divs, key=lambda d: d.date, reverse=True):
+            all_dividends.append(DividendRow(
+                date=div.date.strftime("%d/%m/%Y"),
+                ticker=asset.ticker,
+                amount=div.amount,
+                note=div.note or "",
+            ))
+
+    denom = total_invested if total_invested > 0 else Decimal("1")
+    allocation = [
+        AllocationRow(asset_class=cls, total_invested=val,
+                      percentage=round(float(val / denom) * 100, 1))
+        for cls, val in sorted(class_totals.items(), key=lambda x: -x[1]) if val > 0
+    ]
+
+    data = PortfolioReportData(
+        portfolio_name=portfolio.name,
+        generated_at=date_type.today().strftime("%d/%m/%Y"),
+        total_invested=total_invested,
+        total_dividends=total_dividends_sum,
+        positions=sorted(positions, key=lambda p: -float(p.total_invested)),
+        dividends=all_dividends,
+        allocation=allocation,
+    )
+
+    safe_name = portfolio.name.replace(" ", "_").lower()
+    if format == "pdf":
+        content = generate_portfolio_pdf(data)
+        media_type = "application/pdf"
+        filename = f"portfolio_{safe_name}.pdf"
+    else:
+        content = generate_portfolio_xlsx(data)
+        media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        filename = f"portfolio_{safe_name}.xlsx"
 
     return StreamingResponse(
         io.BytesIO(content),

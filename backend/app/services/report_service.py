@@ -277,3 +277,222 @@ def generate_xlsx(data: ReportData) -> bytes:
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
+
+
+# ── Portfolio report data contract ───────────────────────────────────────────
+
+@dataclass
+class PositionRow:
+    ticker: str
+    name: str
+    asset_class: str
+    quantity: Decimal
+    avg_price: Decimal
+    total_invested: Decimal
+    total_dividends: Decimal
+
+
+@dataclass
+class DividendRow:
+    date: str
+    ticker: str
+    amount: Decimal
+    note: str
+
+
+@dataclass
+class AllocationRow:
+    asset_class: str
+    total_invested: Decimal
+    percentage: float
+
+
+@dataclass
+class PortfolioReportData:
+    portfolio_name: str
+    generated_at: str
+    total_invested: Decimal
+    total_dividends: Decimal
+    positions: list[PositionRow]
+    dividends: list[DividendRow]
+    allocation: list[AllocationRow]
+
+
+# ── Portfolio PDF ─────────────────────────────────────────────────────────────
+
+def generate_portfolio_pdf(data: PortfolioReportData) -> bytes:
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=2 * cm, rightMargin=2 * cm,
+        topMargin=2 * cm, bottomMargin=2 * cm,
+    )
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle("Title", parent=styles["Normal"],
+        fontSize=18, textColor=_SLATE_900, spaceAfter=4, fontName="Helvetica-Bold")
+    subtitle_style = ParagraphStyle("Subtitle", parent=styles["Normal"],
+        fontSize=10, textColor=_SLATE_400, spaceAfter=12)
+    section_style = ParagraphStyle("Section", parent=styles["Normal"],
+        fontSize=11, textColor=_SLATE_900, spaceBefore=16, spaceAfter=8, fontName="Helvetica-Bold")
+
+    story = []
+    story.append(Paragraph("StratEncomy", title_style))
+    story.append(Paragraph(f"Portfolio Report — {data.portfolio_name} — {data.generated_at}", subtitle_style))
+    story.append(HRFlowable(width="100%", thickness=1, color=_SLATE_700, spaceAfter=16))
+
+    summary_data = [
+        ["Total Invested", "Total Dividends", "Positions"],
+        [_fmt_safe(data.total_invested), _fmt_safe(data.total_dividends), str(len(data.positions))],
+    ]
+    st = Table(summary_data, colWidths=["33%"] * 3)
+    st.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), _SLATE_900),
+        ("TEXTCOLOR",  (0, 0), (-1, 0), _WHITE),
+        ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE",   (0, 0), (-1, -1), 9),
+        ("ALIGN",      (0, 0), (-1, -1), "CENTER"),
+        ("FONTNAME",   (0, 1), (-1, 1), "Helvetica-Bold"),
+        ("FONTSIZE",   (0, 1), (-1, 1), 11),
+        ("TEXTCOLOR",  (0, 1), (0, 1), _GREEN),
+        ("TEXTCOLOR",  (1, 1), (1, 1), _BLUE),
+        ("ROWBACKGROUNDS", (0, 1), (-1, 1), [colors.HexColor("#F8FAFC")]),
+        ("BOX",  (0, 0), (-1, -1), 0.5, _SLATE_700),
+        ("GRID", (0, 0), (-1, -1), 0.25, _SLATE_400),
+        ("TOPPADDING",    (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+    ]))
+    story.append(st)
+
+    if data.allocation:
+        story.append(Paragraph("Allocation by Class", section_style))
+        alloc_data = [["Class", "Invested", "%"]] + [
+            [r.asset_class.upper(), _fmt_safe(r.total_invested), f"{r.percentage:.1f}%"]
+            for r in data.allocation
+        ]
+        at = Table(alloc_data, colWidths=["40%", "40%", "20%"])
+        at.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), _SLATE_900),
+            ("TEXTCOLOR",  (0, 0), (-1, 0), _WHITE),
+            ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE",   (0, 0), (-1, -1), 9),
+            ("ALIGN",      (1, 0), (-1, -1), "RIGHT"),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [_WHITE, colors.HexColor("#F1F5F9")]),
+            ("BOX",  (0, 0), (-1, -1), 0.5, _SLATE_700),
+            ("LINEBELOW", (0, 0), (-1, 0), 0.5, _SLATE_700),
+            ("TOPPADDING",    (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ]))
+        story.append(at)
+
+    if data.positions:
+        story.append(Paragraph("Positions", section_style))
+        pos_data = [["Ticker", "Name", "Class", "Qty", "Avg Price", "Invested", "Dividends"]] + [
+            [p.ticker, p.name or "—", p.asset_class.upper(),
+             f"{float(p.quantity):,.4f}", _fmt_safe(p.avg_price),
+             _fmt_safe(p.total_invested), _fmt_safe(p.total_dividends)]
+            for p in data.positions
+        ]
+        pt = Table(pos_data, colWidths=["10%", "20%", "10%", "12%", "14%", "17%", "17%"])
+        pt.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), _SLATE_900),
+            ("TEXTCOLOR",  (0, 0), (-1, 0), _WHITE),
+            ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE",   (0, 0), (-1, -1), 8),
+            ("ALIGN",      (3, 0), (-1, -1), "RIGHT"),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [_WHITE, colors.HexColor("#F1F5F9")]),
+            ("BOX",  (0, 0), (-1, -1), 0.5, _SLATE_700),
+            ("LINEBELOW", (0, 0), (-1, 0), 0.5, _SLATE_700),
+            ("TOPPADDING",    (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        story.append(pt)
+
+    if data.dividends:
+        story.append(Paragraph("Dividends", section_style))
+        div_data = [["Date", "Ticker", "Amount", "Note"]] + [
+            [d.date, d.ticker, _fmt_safe(d.amount), d.note or "—"]
+            for d in data.dividends
+        ]
+        dt = Table(div_data, colWidths=["15%", "15%", "20%", "50%"])
+        dt.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), _SLATE_900),
+            ("TEXTCOLOR",  (0, 0), (-1, 0), _WHITE),
+            ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE",   (0, 0), (-1, -1), 8),
+            ("ALIGN",      (2, 0), (2, -1), "RIGHT"),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [_WHITE, colors.HexColor("#F1F5F9")]),
+            ("BOX",  (0, 0), (-1, -1), 0.5, _SLATE_700),
+            ("LINEBELOW", (0, 0), (-1, 0), 0.5, _SLATE_700),
+            ("TOPPADDING",    (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        story.append(dt)
+
+    doc.build(story)
+    return buf.getvalue()
+
+
+# ── Portfolio XLSX ────────────────────────────────────────────────────────────
+
+def generate_portfolio_xlsx(data: PortfolioReportData) -> bytes:
+    wb = Workbook()
+    _hf  = Font(bold=True, color="F8FAFC", size=10)
+    _hfill = PatternFill("solid", fgColor="0F172A")
+    _alt = PatternFill("solid", fgColor="F1F5F9")
+    _border = Border(
+        left=Side(style="thin", color="334155"), right=Side(style="thin", color="334155"),
+        top=Side(style="thin", color="334155"), bottom=Side(style="thin", color="334155"),
+    )
+
+    def _h(cell):
+        cell.font = _hf; cell.fill = _hfill
+        cell.alignment = Alignment(horizontal="center", vertical="center"); cell.border = _border
+
+    def _c(cell, alt=False):
+        if alt: cell.fill = _alt
+        cell.alignment = Alignment(vertical="center"); cell.border = _border
+
+    ws = wb.active
+    ws.title = "Positions"
+    ws.append([f"StratEncomy — {data.portfolio_name} — {data.generated_at}"])
+    ws["A1"].font = Font(bold=True, size=13)
+    ws.append([])
+    ws.append(["Ticker", "Name", "Class", "Quantity", "Avg Price", "Invested", "Dividends"])
+    for cell in ws[3]: _h(cell)
+    for i, p in enumerate(data.positions):
+        ws.append([p.ticker, p.name or "", p.asset_class.upper(),
+                   float(p.quantity), float(p.avg_price), float(p.total_invested), float(p.total_dividends)])
+        row = ws[ws.max_row]
+        for cell in row: _c(cell, alt=(i % 2 == 1))
+        row[4].number_format = 'R$ #,##0.00000'
+        row[5].number_format = 'R$ #,##0.00'
+        row[6].number_format = 'R$ #,##0.00'
+    for col, w in zip("ABCDEFG", [10, 25, 10, 14, 16, 16, 16]):
+        ws.column_dimensions[col].width = w
+
+    ws2 = wb.create_sheet("Dividends")
+    ws2.append(["Date", "Ticker", "Amount", "Note"])
+    for cell in ws2[1]: _h(cell)
+    for i, d in enumerate(data.dividends):
+        ws2.append([d.date, d.ticker, float(d.amount), d.note or ""])
+        row = ws2[ws2.max_row]
+        for cell in row: _c(cell, alt=(i % 2 == 1))
+        row[2].number_format = 'R$ #,##0.00'
+    for col, w in zip("ABCD", [12, 10, 16, 35]):
+        ws2.column_dimensions[col].width = w
+
+    ws3 = wb.create_sheet("Allocation")
+    ws3.append(["Class", "Invested", "%"])
+    for cell in ws3[1]: _h(cell)
+    for i, a in enumerate(data.allocation):
+        ws3.append([a.asset_class.upper(), float(a.total_invested), a.percentage / 100])
+        row = ws3[ws3.max_row]
+        for cell in row: _c(cell, alt=(i % 2 == 1))
+        row[1].number_format = 'R$ #,##0.00'
+        row[2].number_format = "0.0%"
+    for col, w in zip("ABC", [14, 18, 12]):
+        ws3.column_dimensions[col].width = w
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()

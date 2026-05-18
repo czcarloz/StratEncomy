@@ -93,3 +93,17 @@ class Dividend(Base):
     )
 
     asset: Mapped["Asset"] = relationship(back_populates="dividends")
+
+
+class PortfolioGoal(Base):
+    __tablename__ = "portfolio_goals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    portfolio_id: Mapped[int] = mapped_column(ForeignKey("portfolios.id"), nullable=False, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    patrimony_target: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    dividends_target: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

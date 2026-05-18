@@ -4,19 +4,25 @@ from fastapi import APIRouter, HTTPException, Request, status
 from sqlalchemy import select
 
 from app.core.deps import CurrentUser, DB, TenantID
-from app.models.portfolio import Asset, Dividend, InvestmentTransaction, OperationType, Portfolio
+from app.models.portfolio import Asset, AssetClass, Dividend, InvestmentTransaction, OperationType, Portfolio, PortfolioGoal
 from app.schemas.portfolio import (
     AssetCreate,
     AssetOut,
     AssetPosition,
     DividendCreate,
     DividendOut,
+    DividendsByMonth,
+    GoalCreate,
+    GoalOut,
+    GoalUpdate,
     OperationCreate,
     OperationOut,
     PortfolioCreate,
+    PortfolioDashboard,
     PortfolioOut,
     PortfolioPosition,
     PortfolioUpdate,
+    AllocationItem,
 )
 from app.services.audit import client_ip, log as audit
 
@@ -280,6 +286,109 @@ async def delete_dividend(
                 entity="dividend", entity_id=div_id,
                 payload={"amount": str(div.amount)}, ip=client_ip(request))
     await db.delete(div)
+    await db.commit()
+
+
+# ── Dashboard ─────────────────────────────────────────────────────────────────
+
+@router.get("/{portfolio_id}/dashboard", response_model=PortfolioDashboard)
+async def get_dashboard(portfolio_id: int, db: DB, tenant_id: TenantID):
+    portfolio = await _get_portfolio_or_404(db, portfolio_id, tenant_id)
+
+    assets = (await db.scalars(select(Asset).where(Asset.portfolio_id == portfolio_id))).all()
+
+    class_totals: dict[str, Decimal] = {}
+    total_invested = Decimal("0")
+    total_dividends = Decimal("0")
+    dividends_by_month: dict[tuple[int, int], Decimal] = {}
+
+    for asset in assets:
+        ops = (await db.scalars(select(InvestmentTransaction).where(InvestmentTransaction.asset_id == asset.id))).all()
+        divs = (await db.scalars(select(Dividend).where(Dividend.asset_id == asset.id))).all()
+
+        qty, avg_price, asset_divs = _compute_position(list(ops), list(divs))
+        invested = (qty * avg_price).quantize(Decimal("0.01"))
+
+        key = asset.asset_class.value
+        class_totals[key] = class_totals.get(key, Decimal("0")) + invested
+        total_invested += invested
+        total_dividends += asset_divs
+
+        for div in divs:
+            k = (div.date.year, div.date.month)
+            dividends_by_month[k] = dividends_by_month.get(k, Decimal("0")) + div.amount
+
+    denom = total_invested if total_invested > 0 else Decimal("1")
+    allocation = [
+        AllocationItem(
+            asset_class=cls,
+            total_invested=val,
+            percentage=round(float(val / denom) * 100, 1),
+        )
+        for cls, val in sorted(class_totals.items(), key=lambda x: -x[1])
+        if val > 0
+    ]
+
+    divs_monthly = [
+        DividendsByMonth(year=y, month=m, total=v)
+        for (y, m), v in sorted(dividends_by_month.items())
+    ]
+
+    return PortfolioDashboard(
+        portfolio_id=portfolio_id,
+        name=portfolio.name,
+        total_invested=total_invested,
+        total_dividends=total_dividends,
+        allocation=allocation,
+        dividends_by_month=divs_monthly,
+    )
+
+
+# ── Goals ─────────────────────────────────────────────────────────────────────
+
+@router.get("/{portfolio_id}/goals", response_model=list[GoalOut])
+async def list_goals(portfolio_id: int, db: DB, tenant_id: TenantID):
+    await _get_portfolio_or_404(db, portfolio_id, tenant_id)
+    result = await db.scalars(select(PortfolioGoal).where(PortfolioGoal.portfolio_id == portfolio_id))
+    return result.all()
+
+
+@router.post("/{portfolio_id}/goals", response_model=GoalOut, status_code=status.HTTP_201_CREATED)
+async def create_goal(request: Request, portfolio_id: int, body: GoalCreate, db: DB, user: CurrentUser, tenant_id: TenantID):
+    await _get_portfolio_or_404(db, portfolio_id, tenant_id)
+    goal = PortfolioGoal(**body.model_dump(), portfolio_id=portfolio_id, tenant_id=tenant_id)
+    db.add(goal)
+    await db.flush()
+    await audit(db, "goal.create", user_id=user.id, tenant_id=tenant_id,
+                entity="goal", entity_id=goal.id, payload={"name": body.name}, ip=client_ip(request))
+    await db.commit()
+    await db.refresh(goal)
+    return goal
+
+
+@router.put("/{portfolio_id}/goals/{goal_id}", response_model=GoalOut)
+async def update_goal(request: Request, portfolio_id: int, goal_id: int, body: GoalUpdate, db: DB, user: CurrentUser, tenant_id: TenantID):
+    goal = await db.get(PortfolioGoal, goal_id)
+    if not goal or goal.portfolio_id != portfolio_id or goal.tenant_id != tenant_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Goal not found")
+    data = body.model_dump(exclude_none=True)
+    for f, v in data.items():
+        setattr(goal, f, v)
+    await audit(db, "goal.update", user_id=user.id, tenant_id=tenant_id,
+                entity="goal", entity_id=goal_id, payload=data, ip=client_ip(request))
+    await db.commit()
+    await db.refresh(goal)
+    return goal
+
+
+@router.delete("/{portfolio_id}/goals/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_goal(request: Request, portfolio_id: int, goal_id: int, db: DB, user: CurrentUser, tenant_id: TenantID):
+    goal = await db.get(PortfolioGoal, goal_id)
+    if not goal or goal.portfolio_id != portfolio_id or goal.tenant_id != tenant_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Goal not found")
+    await audit(db, "goal.delete", user_id=user.id, tenant_id=tenant_id,
+                entity="goal", entity_id=goal_id, payload={"name": goal.name}, ip=client_ip(request))
+    await db.delete(goal)
     await db.commit()
 
 

@@ -1,5 +1,5 @@
 import { auth } from "./auth";
-import type { Asset, AssetPosition, AuditLog, Category, CreditCard, CreditCardPurchase, DashboardSummary, Dividend, Invoice, MonthlyPoint, Operation, PlannedInvestment, Portfolio, PortfolioPosition, Tenant, Transaction, User } from "@/types";
+import type { AllocationItem, Asset, AssetPosition, AuditLog, Category, CreditCard, CreditCardPurchase, DashboardSummary, Dividend, DividendsByMonth, Invoice, MonthlyPoint, Operation, PlannedInvestment, Portfolio, PortfolioDashboard, PortfolioGoal, PortfolioPosition, Tenant, Transaction, User } from "@/types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -190,6 +190,28 @@ export const api = {
       }),
     removeDividend: (portfolioId: number, divId: number) =>
       req<void>(`/api/v1/portfolios/${portfolioId}/dividends/${divId}`, { method: "DELETE" }),
+
+    dashboard: (portfolioId: number) =>
+      req<PortfolioDashboard>(`/api/v1/portfolios/${portfolioId}/dashboard`),
+
+    goals: (portfolioId: number) => req<PortfolioGoal[]>(`/api/v1/portfolios/${portfolioId}/goals`),
+    createGoal: (portfolioId: number, data: { name: string; patrimony_target?: string; dividends_target?: string }) =>
+      req<PortfolioGoal>(`/api/v1/portfolios/${portfolioId}/goals`, { method: "POST", body: JSON.stringify(data) }),
+    updateGoal: (portfolioId: number, goalId: number, data: { name?: string; patrimony_target?: string; dividends_target?: string }) =>
+      req<PortfolioGoal>(`/api/v1/portfolios/${portfolioId}/goals/${goalId}`, { method: "PUT", body: JSON.stringify(data) }),
+    removeGoal: (portfolioId: number, goalId: number) =>
+      req<void>(`/api/v1/portfolios/${portfolioId}/goals/${goalId}`, { method: "DELETE" }),
+
+    exportReport: async (portfolioId: number, format: "pdf" | "xlsx"): Promise<Blob> => {
+      const token = auth.getToken();
+      const tenantId = auth.getTenantId();
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      if (tenantId) headers["X-Tenant-ID"] = String(tenantId);
+      const res = await fetch(`${BASE}/api/v1/reports/portfolio?portfolio_id=${portfolioId}&format=${format}`, { headers });
+      if (!res.ok) throw new Error("Export failed");
+      return res.blob();
+    },
   },
 
   admin: {

@@ -130,3 +130,52 @@ class PortfolioPosition(BaseModel):
     total_invested: Decimal
     total_dividends: Decimal
     positions: list[AssetPosition]
+
+
+# ── Dashboard ─────────────────────────────────────────────────────────────────
+
+class AllocationItem(BaseModel):
+    asset_class: str
+    total_invested: Decimal
+    percentage: float
+
+
+class DividendsByMonth(BaseModel):
+    year: int
+    month: int
+    total: Decimal
+
+
+class PortfolioDashboard(BaseModel):
+    portfolio_id: int
+    name: str
+    total_invested: Decimal
+    total_dividends: Decimal
+    allocation: list[AllocationItem]
+    dividends_by_month: list[DividendsByMonth]
+
+
+# ── Goals ─────────────────────────────────────────────────────────────────────
+
+class GoalCreate(BaseModel):
+    name: str
+    patrimony_target: Decimal | None = None
+    dividends_target: Decimal | None = None
+
+
+class GoalUpdate(BaseModel):
+    name: str | None = None
+    patrimony_target: Decimal | None = None
+    dividends_target: Decimal | None = None
+
+
+class GoalOut(BaseModel):
+    id: int
+    portfolio_id: int
+    tenant_id: int
+    name: str
+    patrimony_target: Decimal | None
+    dividends_target: Decimal | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

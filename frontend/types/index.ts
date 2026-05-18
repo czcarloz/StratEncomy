@@ -185,6 +185,37 @@ export interface PortfolioPosition {
   positions: AssetPosition[];
 }
 
+export interface AllocationItem {
+  asset_class: string;
+  total_invested: string;
+  percentage: number;
+}
+
+export interface DividendsByMonth {
+  year: number;
+  month: number;
+  total: string;
+}
+
+export interface PortfolioDashboard {
+  portfolio_id: number;
+  name: string;
+  total_invested: string;
+  total_dividends: string;
+  allocation: AllocationItem[];
+  dividends_by_month: DividendsByMonth[];
+}
+
+export interface PortfolioGoal {
+  id: number;
+  portfolio_id: number;
+  tenant_id: number;
+  name: string;
+  patrimony_target: string | null;
+  dividends_target: string | null;
+  created_at: string;
+}
+
 export interface AuditLog {
   id: number;
   user_id: number | null;
