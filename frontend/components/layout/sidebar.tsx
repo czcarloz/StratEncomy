@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ArrowLeftRight, CreditCard, TrendingUp, LogOut, Tag, ScrollText, Briefcase } from "lucide-react";
+import { LayoutDashboard, ArrowLeftRight, CreditCard, TrendingUp, LogOut, Tag, ScrollText, Briefcase, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 
@@ -10,9 +10,10 @@ const NAV = [
   { href: "/transactions",        label: "Transactions",        icon: ArrowLeftRight },
   { href: "/credit-cards",        label: "Credit Cards",        icon: CreditCard },
   { href: "/planned-investments", label: "Planned Investments", icon: TrendingUp },
-  { href: "/portfolios",          label: "Portfolios",          icon: Briefcase },
-  { href: "/categories",          label: "Categories",          icon: Tag },
-  { href: "/dashboard",           label: "Dashboard",           icon: LayoutDashboard },
+  { href: "/portfolios",                      label: "Portfolios",          icon: Briefcase },
+  { href: "/ferramentas/juros-compostos",     label: "Ferramentas",         icon: Wrench },
+  { href: "/categories",                      label: "Categories",          icon: Tag },
+  { href: "/dashboard",                       label: "Dashboard",           icon: LayoutDashboard },
 ];
 
 export function Sidebar() {
@@ -36,7 +37,7 @@ export function Sidebar() {
             href={href}
             className={cn(
               "flex items-center gap-3 rounded-card px-3 py-2 text-sm font-medium transition-colors duration-150",
-              pathname === href
+              (href === "/dashboard" ? pathname === href : pathname.startsWith(href))
                 ? "bg-primary-bg text-primary"
                 : "text-muted hover:bg-surface hover:text-text"
             )}
