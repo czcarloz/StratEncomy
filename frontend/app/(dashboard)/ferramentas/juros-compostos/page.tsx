@@ -177,10 +177,11 @@ export default function JurosCompostosPage() {
                 value={rateType}
                 onChange={(e) => setRateType(e.target.value as "month" | "year")}
                 className="w-28"
-              >
-                <option value="month">ao mês</option>
-                <option value="year">ao ano</option>
-              </Select>
+                options={[
+                  { value: "month", label: "ao mês" },
+                  { value: "year",  label: "ao ano"  },
+                ]}
+              />
             </div>
           </div>
 
@@ -196,10 +197,11 @@ export default function JurosCompostosPage() {
                 value={periodType}
                 onChange={(e) => setPeriodType(e.target.value as "month" | "year")}
                 className="w-28"
-              >
-                <option value="month">meses</option>
-                <option value="year">anos</option>
-              </Select>
+                options={[
+                  { value: "month", label: "meses" },
+                  { value: "year",  label: "anos"  },
+                ]}
+              />
             </div>
           </div>
         </div>
