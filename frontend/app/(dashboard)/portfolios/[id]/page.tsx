@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Plus, Trash2, ArrowUpCircle, ArrowDownCircle, Gift, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  Plus, Trash2, ArrowUpCircle, ArrowDownCircle,
+  Gift, ChevronDown, ChevronRight,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import type { Asset, AssetPosition, Dividend, Operation, PortfolioPosition } from "@/types";
 import { Header } from "@/components/layout/header";
@@ -40,17 +43,25 @@ function fmt(v: string | number) {
 
 function fmtQty(v: string) {
   const n = Number(v);
-  return n % 1 === 0 ? n.toLocaleString("pt-BR") : n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 8 });
+  return n % 1 === 0
+    ? n.toLocaleString("pt-BR")
+    : n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 8 });
+}
+
+// Merge: every asset appears; position data is optional
+interface AssetRow {
+  asset: Asset;
+  pos: AssetPosition | null;
 }
 
 export default function PortfolioDetailPage() {
   const { id } = useParams<{ id: string }>();
   const portfolioId = Number(id);
 
+  const [assets, setAssets] = useState<Asset[]>([]);
   const [position, setPosition] = useState<PortfolioPosition | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // expanded asset
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [assetOps, setAssetOps] = useState<Record<number, Operation[]>>({});
   const [assetDivs, setAssetDivs] = useState<Record<number, Dividend[]>>({});
@@ -76,8 +87,14 @@ export default function PortfolioDetailPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setPosition(await api.portfolios.position(portfolioId));
+      const [a, p] = await Promise.all([
+        api.portfolios.assets(portfolioId),
+        api.portfolios.position(portfolioId).catch(() => null),
+      ]);
+      setAssets(a);
+      setPosition(p);
     } catch {
+      setAssets([]);
       setPosition(null);
     } finally {
       setLoading(false);
@@ -86,26 +103,37 @@ export default function PortfolioDetailPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function toggleAsset(pos: AssetPosition) {
-    if (expandedId === pos.asset_id) {
-      setExpandedId(null);
-      return;
-    }
-    setExpandedId(pos.asset_id);
-    if (!assetOps[pos.asset_id]) {
+  // Build merged rows
+  const posMap: Record<number, AssetPosition> = {};
+  position?.positions.forEach((p) => { posMap[p.asset_id] = p; });
+  const rows: AssetRow[] = assets.map((a) => ({ asset: a, pos: posMap[a.id] ?? null }));
+
+  async function toggleAsset(assetId: number) {
+    if (expandedId === assetId) { setExpandedId(null); return; }
+    setExpandedId(assetId);
+    if (!assetOps[assetId]) {
       try {
         const [ops, divs] = await Promise.all([
-          api.portfolios.operations(portfolioId, pos.asset_id),
+          api.portfolios.operations(portfolioId, assetId),
           api.portfolios.dividends(portfolioId),
         ]);
-        setAssetOps((prev) => ({ ...prev, [pos.asset_id]: ops }));
+        setAssetOps((prev) => ({ ...prev, [assetId]: ops }));
         setAssetDivs((prev) => ({
           ...prev,
-          [pos.asset_id]: divs.filter((d) => d.asset_id === pos.asset_id),
+          [assetId]: divs.filter((d) => d.asset_id === assetId),
         }));
-      } catch {
-        // leave empty
-      }
+      } catch { /* leave empty */ }
+    }
+  }
+
+  async function handleDeleteAsset(assetId: number) {
+    if (!confirm("Remover este ativo e todas as suas operações?")) return;
+    try {
+      await api.portfolios.removeAsset(portfolioId, assetId);
+      toast.success("Asset removed");
+      await load();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to remove asset");
     }
   }
 
@@ -143,9 +171,10 @@ export default function PortfolioDetailPage() {
         broker: broker.trim() || undefined,
       });
       toast.success("Operation recorded");
+      const assetId = showAddOp.id;
       setShowAddOp(null);
       setQty(""); setPrice(""); setBroker("");
-      setAssetOps((prev) => ({ ...prev, [showAddOp.id]: [] }));
+      setAssetOps((prev) => ({ ...prev, [assetId]: [] }));
       setExpandedId(null);
       await load();
     } catch (err: unknown) {
@@ -165,9 +194,10 @@ export default function PortfolioDetailPage() {
         date: divDate,
       });
       toast.success("Dividend recorded");
+      const assetId = showAddDiv.id;
       setShowAddDiv(null);
       setDivAmount("");
-      setAssetDivs((prev) => ({ ...prev, [showAddDiv.id]: [] }));
+      setAssetDivs((prev) => ({ ...prev, [assetId]: [] }));
       setExpandedId(null);
       await load();
     } catch (err: unknown) {
@@ -222,95 +252,103 @@ export default function PortfolioDetailPage() {
       <div className="flex flex-col flex-1 overflow-auto px-6 py-5 gap-5">
         {loading ? (
           <div className="flex flex-1 items-center justify-center"><Spinner /></div>
-        ) : !position ? (
-          <p className="text-sm text-muted">Portfolio not found.</p>
         ) : (
           <>
             {/* Summary cards */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              <SummaryCard label="Total Invested" value={fmt(position.total_invested)} />
-              <SummaryCard label="Total Dividends" value={fmt(position.total_dividends)} />
-              <SummaryCard label="Assets" value={String(position.positions.length)} plain />
+              <SummaryCard label="Total Invested" value={fmt(position?.total_invested ?? "0")} />
+              <SummaryCard label="Total Dividends" value={fmt(position?.total_dividends ?? "0")} />
+              <SummaryCard label="Assets" value={String(assets.length)} plain />
             </div>
 
-            {/* Positions table */}
-            {position.positions.length === 0 ? (
-              <p className="text-sm text-muted">No positions yet. Add an asset and record a buy operation.</p>
+            {rows.length === 0 ? (
+              <p className="text-sm text-muted">Nenhum ativo ainda. Clique em "Add Asset" para começar.</p>
             ) : (
               <div className="rounded-card border border-border overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border bg-surface text-left text-xs text-muted">
-                      <th className="px-4 py-2.5 font-medium">Asset</th>
-                      <th className="px-4 py-2.5 font-medium">Class</th>
-                      <th className="px-4 py-2.5 font-medium text-right">Quantity</th>
-                      <th className="px-4 py-2.5 font-medium text-right">Avg Price</th>
-                      <th className="px-4 py-2.5 font-medium text-right">Total Invested</th>
-                      <th className="px-4 py-2.5 font-medium text-right">Dividends</th>
-                      <th className="px-4 py-2.5 font-medium w-24" />
+                      <th className="px-4 py-2.5 font-medium">Ativo</th>
+                      <th className="px-4 py-2.5 font-medium">Classe</th>
+                      <th className="px-4 py-2.5 font-medium text-right">Qtd</th>
+                      <th className="px-4 py-2.5 font-medium text-right">PM</th>
+                      <th className="px-4 py-2.5 font-medium text-right">Total Investido</th>
+                      <th className="px-4 py-2.5 font-medium text-right">Dividendos</th>
+                      <th className="px-4 py-2.5 font-medium w-28" />
                     </tr>
                   </thead>
                   <tbody>
-                    {position.positions.map((pos) => (
+                    {rows.map(({ asset, pos }) => (
                       <>
                         <tr
-                          key={pos.asset_id}
+                          key={asset.id}
                           className="border-b border-border last:border-0 hover:bg-surface/60 cursor-pointer transition-colors"
-                          onClick={() => toggleAsset(pos)}
+                          onClick={() => toggleAsset(asset.id)}
                         >
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
-                              {expandedId === pos.asset_id
+                              {expandedId === asset.id
                                 ? <ChevronDown size={13} className="text-muted" />
-                                : <ChevronRight size={13} className="text-muted" />
-                              }
-                              <span className="font-semibold text-text">{pos.ticker}</span>
-                              {pos.name && <span className="text-xs text-muted">{pos.name}</span>}
+                                : <ChevronRight size={13} className="text-muted" />}
+                              <span className="font-semibold text-text">{asset.ticker}</span>
+                              {asset.name && <span className="text-xs text-muted">{asset.name}</span>}
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${CLASS_BADGE[pos.asset_class] ?? "bg-surface text-muted"}`}>
-                              {pos.asset_class.toUpperCase()}
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${CLASS_BADGE[asset.asset_class] ?? "bg-surface text-muted"}`}>
+                              {asset.asset_class.toUpperCase()}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-right font-mono text-xs">{fmtQty(pos.quantity)}</td>
-                          <td className="px-4 py-3 text-right font-mono text-xs">{fmt(pos.avg_price)}</td>
-                          <td className="px-4 py-3 text-right font-mono text-xs font-medium">{fmt(pos.total_invested)}</td>
-                          <td className="px-4 py-3 text-right font-mono text-xs text-success">{fmt(pos.total_dividends)}</td>
+                          <td className="px-4 py-3 text-right font-mono text-xs text-muted">
+                            {pos ? fmtQty(pos.quantity) : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono text-xs text-muted">
+                            {pos ? fmt(pos.avg_price) : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono text-xs font-medium">
+                            {pos ? fmt(pos.total_invested) : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-right font-mono text-xs text-success">
+                            {pos ? fmt(pos.total_dividends) : "—"}
+                          </td>
                           <td className="px-4 py-3">
-                            <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                            <div
+                              className="flex items-center justify-end gap-1"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <button
                                 title="Buy/Sell"
                                 className="rounded p-1.5 text-muted hover:bg-surface hover:text-text transition-colors"
-                                onClick={() => {
-                                  const a = { id: pos.asset_id, portfolio_id: portfolioId, tenant_id: 0, ticker: pos.ticker, name: pos.name, asset_class: pos.asset_class, created_at: "" };
-                                  setShowAddOp(a);
-                                }}
+                                onClick={() => setShowAddOp(asset)}
                               >
                                 <ArrowUpCircle size={14} />
                               </button>
                               <button
                                 title="Dividend"
                                 className="rounded p-1.5 text-muted hover:bg-surface hover:text-success transition-colors"
-                                onClick={() => {
-                                  const a = { id: pos.asset_id, portfolio_id: portfolioId, tenant_id: 0, ticker: pos.ticker, name: pos.name, asset_class: pos.asset_class, created_at: "" };
-                                  setShowAddDiv(a);
-                                }}
+                                onClick={() => setShowAddDiv(asset)}
                               >
                                 <Gift size={14} />
+                              </button>
+                              <button
+                                title="Remove asset"
+                                className="rounded p-1.5 text-muted hover:bg-surface hover:text-danger transition-colors"
+                                onClick={() => handleDeleteAsset(asset.id)}
+                              >
+                                <Trash2 size={14} />
                               </button>
                             </div>
                           </td>
                         </tr>
 
-                        {expandedId === pos.asset_id && (
-                          <tr key={`${pos.asset_id}-detail`} className="bg-surface/40">
+                        {expandedId === asset.id && (
+                          <tr key={`${asset.id}-detail`} className="bg-surface/40">
                             <td colSpan={7} className="px-6 pb-4 pt-2">
                               <OperationHistory
-                                ops={assetOps[pos.asset_id] ?? []}
-                                divs={assetDivs[pos.asset_id] ?? []}
-                                onDeleteOp={(opId) => handleDeleteOp(pos.asset_id, opId)}
-                                onDeleteDiv={(divId) => handleDeleteDiv(pos.asset_id, divId)}
+                                ops={assetOps[asset.id] ?? []}
+                                divs={assetDivs[asset.id] ?? []}
+                                onDeleteOp={(opId) => handleDeleteOp(asset.id, opId)}
+                                onDeleteDiv={(divId) => handleDeleteDiv(asset.id, divId)}
                               />
                             </td>
                           </tr>
@@ -330,14 +368,14 @@ export default function PortfolioDetailPage() {
         <form onSubmit={handleAddAsset} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="ticker">Ticker</Label>
-            <Input id="ticker" placeholder="e.g. PETR4" value={ticker} onChange={(e) => setTicker(e.target.value)} required />
+            <Input id="ticker" placeholder="ex: PETR4" value={ticker} onChange={(e) => setTicker(e.target.value)} required />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="asset-name">Name (optional)</Label>
-            <Input id="asset-name" placeholder="e.g. Petrobras PN" value={assetName} onChange={(e) => setAssetName(e.target.value)} />
+            <Label htmlFor="asset-name">Nome (opcional)</Label>
+            <Input id="asset-name" placeholder="ex: Petrobras PN" value={assetName} onChange={(e) => setAssetName(e.target.value)} />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="asset-class">Class</Label>
+            <Label htmlFor="asset-class">Classe</Label>
             <Select
               id="asset-class"
               value={assetClass}
@@ -346,17 +384,17 @@ export default function PortfolioDetailPage() {
             />
           </div>
           <div className="flex justify-end gap-2 pt-1">
-            <Button type="button" variant="secondary" onClick={() => setShowAddAsset(false)}>Cancel</Button>
-            <Button type="submit" disabled={saving}>{saving ? "Adding…" : "Add"}</Button>
+            <Button type="button" variant="secondary" onClick={() => setShowAddAsset(false)}>Cancelar</Button>
+            <Button type="submit" disabled={saving}>{saving ? "Adicionando…" : "Adicionar"}</Button>
           </div>
         </form>
       </Modal>
 
       {/* Add Operation Modal */}
-      <Modal open={!!showAddOp} onClose={() => setShowAddOp(null)} title={`Operation — ${showAddOp?.ticker ?? ""}`}>
+      <Modal open={!!showAddOp} onClose={() => setShowAddOp(null)} title={`Operação — ${showAddOp?.ticker ?? ""}`}>
         <form onSubmit={handleAddOp} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label>Type</Label>
+            <Label>Tipo</Label>
             <div className="flex gap-2">
               {["buy", "sell"].map((t) => (
                 <button
@@ -370,29 +408,29 @@ export default function PortfolioDetailPage() {
                   }`}
                 >
                   {t === "buy" ? <ArrowUpCircle size={14} /> : <ArrowDownCircle size={14} />}
-                  {t === "buy" ? "Buy" : "Sell"}
+                  {t === "buy" ? "Compra" : "Venda"}
                 </button>
               ))}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="op-qty">Quantity</Label>
+              <Label htmlFor="op-qty">Quantidade</Label>
               <Input id="op-qty" type="number" step="any" min="0" placeholder="0" value={qty} onChange={(e) => setQty(e.target.value)} required />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="op-price">Unit Price (R$)</Label>
+              <Label htmlFor="op-price">Preço unitário (R$)</Label>
               <Input id="op-price" type="number" step="any" min="0" placeholder="0.00" value={price} onChange={(e) => setPrice(e.target.value)} required />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="op-date">Date</Label>
+              <Label htmlFor="op-date">Data</Label>
               <Input id="op-date" type="date" value={opDate} onChange={(e) => setOpDate(e.target.value)} required />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="op-broker">Broker (optional)</Label>
-              <Input id="op-broker" placeholder="e.g. XP" value={broker} onChange={(e) => setBroker(e.target.value)} />
+              <Label htmlFor="op-broker">Corretora (opcional)</Label>
+              <Input id="op-broker" placeholder="ex: XP" value={broker} onChange={(e) => setBroker(e.target.value)} />
             </div>
           </div>
           {qty && price && (
@@ -401,28 +439,28 @@ export default function PortfolioDetailPage() {
             </p>
           )}
           <div className="flex justify-end gap-2 pt-1">
-            <Button type="button" variant="secondary" onClick={() => setShowAddOp(null)}>Cancel</Button>
-            <Button type="submit" disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
+            <Button type="button" variant="secondary" onClick={() => setShowAddOp(null)}>Cancelar</Button>
+            <Button type="submit" disabled={saving}>{saving ? "Salvando…" : "Salvar"}</Button>
           </div>
         </form>
       </Modal>
 
       {/* Add Dividend Modal */}
-      <Modal open={!!showAddDiv} onClose={() => setShowAddDiv(null)} title={`Dividend — ${showAddDiv?.ticker ?? ""}`}>
+      <Modal open={!!showAddDiv} onClose={() => setShowAddDiv(null)} title={`Dividendo — ${showAddDiv?.ticker ?? ""}`}>
         <form onSubmit={handleAddDiv} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="div-amount">Amount (R$)</Label>
+              <Label htmlFor="div-amount">Valor (R$)</Label>
               <Input id="div-amount" type="number" step="any" min="0" placeholder="0.00" value={divAmount} onChange={(e) => setDivAmount(e.target.value)} required />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="div-date">Date</Label>
+              <Label htmlFor="div-date">Data</Label>
               <Input id="div-date" type="date" value={divDate} onChange={(e) => setDivDate(e.target.value)} required />
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-1">
-            <Button type="button" variant="secondary" onClick={() => setShowAddDiv(null)}>Cancel</Button>
-            <Button type="submit" disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
+            <Button type="button" variant="secondary" onClick={() => setShowAddDiv(null)}>Cancelar</Button>
+            <Button type="submit" disabled={saving}>{saving ? "Salvando…" : "Salvar"}</Button>
           </div>
         </form>
       </Modal>
@@ -440,10 +478,7 @@ function SummaryCard({ label, value, plain }: { label: string; value: string; pl
 }
 
 function OperationHistory({
-  ops,
-  divs,
-  onDeleteOp,
-  onDeleteDiv,
+  ops, divs, onDeleteOp, onDeleteDiv,
 }: {
   ops: Operation[];
   divs: Dividend[];
@@ -451,19 +486,19 @@ function OperationHistory({
   onDeleteDiv: (id: number) => void;
 }) {
   if (ops.length === 0 && divs.length === 0) {
-    return <p className="text-xs text-muted py-2">No operations or dividends recorded yet.</p>;
+    return <p className="text-xs text-muted py-2">Nenhuma operação ou dividendo registrado ainda.</p>;
   }
 
   return (
     <div className="flex flex-col gap-3">
       {ops.length > 0 && (
         <div>
-          <p className="text-xs font-medium text-muted mb-1.5">Operations</p>
+          <p className="text-xs font-medium text-muted mb-1.5">Operações</p>
           <div className="flex flex-col gap-1">
             {ops.map((op) => (
               <div key={op.id} className="flex items-center justify-between text-xs rounded border border-border px-3 py-2 bg-bg">
-                <span className={`font-medium w-8 ${op.type === "buy" ? "text-primary" : "text-danger"}`}>
-                  {op.type.toUpperCase()}
+                <span className={`font-medium w-12 ${op.type === "buy" ? "text-primary" : "text-danger"}`}>
+                  {op.type === "buy" ? "COMPRA" : "VENDA"}
                 </span>
                 <span className="text-muted w-24">{op.date}</span>
                 <span className="text-muted">{fmtQty(op.quantity)} × {fmt(op.unit_price)}</span>
@@ -479,7 +514,7 @@ function OperationHistory({
       )}
       {divs.length > 0 && (
         <div>
-          <p className="text-xs font-medium text-muted mb-1.5">Dividends</p>
+          <p className="text-xs font-medium text-muted mb-1.5">Dividendos</p>
           <div className="flex flex-col gap-1">
             {divs.map((d) => (
               <div key={d.id} className="flex items-center justify-between text-xs rounded border border-border px-3 py-2 bg-bg">
