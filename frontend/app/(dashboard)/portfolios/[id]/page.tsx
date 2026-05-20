@@ -338,9 +338,12 @@ export default function PortfolioDetailPage() {
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="asset-class">Class</Label>
-            <Select id="asset-class" value={assetClass} onChange={(e) => setAssetClass(e.target.value)}>
-              {ASSET_CLASS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </Select>
+            <Select
+              id="asset-class"
+              value={assetClass}
+              onChange={(e) => setAssetClass(e.target.value)}
+              options={ASSET_CLASS_OPTIONS}
+            />
           </div>
           <div className="flex justify-end gap-2 pt-1">
             <Button type="button" variant="secondary" onClick={() => setShowAddAsset(false)}>Cancel</Button>
