@@ -17,6 +17,7 @@ from app.api.v1.dashboard import router as dashboard_router
 from app.api.v1.reports import router as reports_router
 from app.api.v1.admin import router as admin_router
 from app.api.v1.portfolios import router as portfolios_router
+from app.api.v1.imports import router as imports_router
 
 # ── Rate limiter (in-memory, resets on restart) ───────────────────────────────
 limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
@@ -65,6 +66,7 @@ app.include_router(dashboard_router, prefix="/api/v1")
 app.include_router(reports_router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
 app.include_router(portfolios_router, prefix="/api/v1")
+app.include_router(imports_router, prefix="/api/v1")
 
 
 @app.get("/health", tags=["status"])

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import {
   Plus, Trash2, ArrowUpCircle, ArrowDownCircle,
-  Gift, ChevronDown, ChevronRight,
+  Gift, ChevronDown, ChevronRight, Upload,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Asset, AssetPosition, Dividend, Operation, PortfolioPosition } from "@/types";
@@ -16,6 +16,7 @@ import { Select } from "@/components/ui/select";
 import { Modal } from "@/components/ui/modal";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toast";
+import { B3ImportModal } from "./import-modal";
 
 const ASSET_CLASS_OPTIONS = [
   { value: "stock",  label: "Stock (Ação)" },
@@ -68,6 +69,7 @@ export default function PortfolioDetailPage() {
 
   // modals
   const [showAddAsset, setShowAddAsset] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [showAddOp, setShowAddOp] = useState<Asset | null>(null);
   const [showAddDiv, setShowAddDiv] = useState<Asset | null>(null);
 
@@ -242,10 +244,16 @@ export default function PortfolioDetailPage() {
       <Header
         title={title}
         action={
-          <Button size="sm" onClick={() => setShowAddAsset(true)}>
-            <Plus size={14} className="mr-1.5" />
-            Add Asset
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="secondary" onClick={() => setShowImport(true)}>
+              <Upload size={14} className="mr-1.5" />
+              Importar B3
+            </Button>
+            <Button size="sm" onClick={() => setShowAddAsset(true)}>
+              <Plus size={14} className="mr-1.5" />
+              Add Asset
+            </Button>
+          </div>
         }
       />
 
@@ -362,6 +370,15 @@ export default function PortfolioDetailPage() {
           </>
         )}
       </div>
+
+      {/* B3 Import Modal */}
+      {showImport && (
+        <B3ImportModal
+          portfolioId={portfolioId}
+          onClose={() => setShowImport(false)}
+          onImported={() => { setShowImport(false); load(); }}
+        />
+      )}
 
       {/* Add Asset Modal */}
       <Modal open={showAddAsset} onClose={() => setShowAddAsset(false)} title="Add Asset">

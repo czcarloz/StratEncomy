@@ -185,6 +185,35 @@ export interface PortfolioPosition {
   positions: AssetPosition[];
 }
 
+export interface B3ParsedOperation {
+  ticker: string;
+  op_type: "buy" | "sell";
+  quantity: string;
+  unit_price: string;
+  date: string;
+  broker: string | null;
+}
+
+export interface B3ParsedDividend {
+  ticker: string;
+  amount: string;
+  date: string;
+  note: string | null;
+}
+
+export interface B3PreviewResult {
+  operations: B3ParsedOperation[];
+  dividends: B3ParsedDividend[];
+  skipped_count: number;
+  skipped_reasons: string[];
+}
+
+export interface B3ConfirmResult {
+  operations_created: number;
+  dividends_created: number;
+  assets_created: number;
+}
+
 export interface AuditLog {
   id: number;
   user_id: number | null;

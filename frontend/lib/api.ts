@@ -1,5 +1,5 @@
 import { auth } from "./auth";
-import type { Asset, AssetPosition, AuditLog, Category, CreditCard, CreditCardPurchase, DashboardSummary, Dividend, Invoice, MonthlyPoint, Operation, PlannedInvestment, Portfolio, PortfolioPosition, Tenant, Transaction, User } from "@/types";
+import type { Asset, AssetPosition, AuditLog, B3ConfirmResult, B3ParsedDividend, B3ParsedOperation, B3PreviewResult, Category, CreditCard, CreditCardPurchase, DashboardSummary, Dividend, Invoice, MonthlyPoint, Operation, PlannedInvestment, Portfolio, PortfolioPosition, Tenant, Transaction, User } from "@/types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -190,6 +190,29 @@ export const api = {
       }),
     removeDividend: (portfolioId: number, divId: number) =>
       req<void>(`/api/v1/portfolios/${portfolioId}/dividends/${divId}`, { method: "DELETE" }),
+  },
+
+  b3Import: {
+    preview: async (portfolioId: number, file: File): Promise<B3PreviewResult> => {
+      const token = auth.getToken();
+      const tenantId = auth.getTenantId();
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      if (tenantId) headers["X-Tenant-ID"] = String(tenantId);
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(`${BASE}/api/v1/portfolios/${portfolioId}/import/preview`, {
+        method: "POST", headers, body: form,
+      });
+      if (res.status === 401) { auth.clear(); window.location.href = "/login"; throw new Error("Unauthorized"); }
+      if (!res.ok) { const b = await res.json().catch(() => ({ detail: "Upload failed" })); throw new Error(b.detail ?? "Upload failed"); }
+      return res.json();
+    },
+    confirm: (portfolioId: number, operations: B3ParsedOperation[], dividends: B3ParsedDividend[]) =>
+      req<B3ConfirmResult>(`/api/v1/portfolios/${portfolioId}/import/confirm`, {
+        method: "POST",
+        body: JSON.stringify({ operations, dividends }),
+      }),
   },
 
   admin: {
