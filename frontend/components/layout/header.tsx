@@ -15,8 +15,11 @@ export function Header({ title, action }: HeaderProps) {
   const options = tenants.map((t) => ({ value: t.id, label: t.name }));
 
   return (
-    <header className="flex h-12 items-center justify-between border-b border-border pb-4 mb-2">
-      <h1 className="text-lg font-semibold text-text">{title}</h1>
+    <header
+      className="flex h-14 items-center justify-between px-1 mb-3 shrink-0"
+      style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}
+    >
+      <h1 className="text-lg font-semibold text-text tracking-tight">{title}</h1>
 
       <div className="flex items-center gap-3">
         {action}

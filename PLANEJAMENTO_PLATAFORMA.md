@@ -265,3 +265,149 @@ Toda feature só fecha quando:
 ---
 
 *Última atualização: dia 0 — planejamento inicial.*
+
+
+# Design System — Plataforma Financeira
+
+## Estilo visual
+
+**Linguagem:** Flat moderno + layout Bento + densidade de Terminal nos dados.
+
+- **Flat moderno**: superfícies planas, sem gradientes, sem texturas decorativas. Bordas finas (1px ou 0.5px). Cantos arredondados sutis (6–12px).
+- **Bento layout**: dashboard organizado em grid de cards de tamanhos variados, cada um com função clara (KPI, gráfico, lista, ação).
+- **Densidade tipo terminal nos dados**: tabelas compactas, números com fonte tabular (alinhamento de dígitos), monoespaçada para valores quando fizer sentido. Inspiração: TradingView, Linear, Investidor10 versão escura.
+- **Sombras apenas funcionais**: foco de input, dropdown aberto, modal. Nunca decorativas em cards estáticos.
+- **Modo escuro como padrão**, modo claro como opção (dashboard financeiro vive em dark mode).
+- **Animações discretas**: transições de 150–200ms em hover/foco. Nada de bounce, nada de spring exagerado.
+
+### O que **não** usar
+- Neumorphism (sombras duplas tipo "embossed") — datado e ruim para acessibilidade
+- Glassmorphism (vidro fosco/blur) — atrapalha leitura de números
+- Gradientes em cards de KPI — desvia atenção dos valores
+- Ícones coloridos por toda parte — ícone é estrutura, valor é cor
+- Bordas arredondadas exageradas (>16px) — passa vibe de app casual, não de plataforma de investimento
+
+---
+
+## Paleta de cores — Verde + Slate
+
+Inspiração: TradingView / Bloomberg Terminal / dashboards profissionais de mercado.
+**Princípio:** slate domina, verde é acento semântico (alta, lucro, ação primária). Verde escasso = verde com significado.
+
+### Neutros (slate) — estrutura
+
+| Token | Hex | Uso |
+|---|---|---|
+| `bg`       | `#0F172A` | Fundo principal (modo escuro) |
+| `surface`  | `#1E293B` | Cards, modais, painéis |
+| `surface-2`| `#334155` | Surface elevada, hover de card |
+| `border`   | `#334155` | Bordas padrão |
+| `muted`    | `#94A3B8` | Texto secundário, labels |
+| `text`     | `#F8FAFC` | Texto principal |
+
+### Acentos — semântica
+
+| Token | Hex | Uso |
+|---|---|---|
+| `primary`        | `#059669` | Botões primários, links, destaques |
+| `primary-hover`  | `#047857` | Estado hover do primary |
+| `primary-bg`     | `#064E3B` | Fundos de badge/destaque em verde |
+| `success`        | `#10B981` | Alta, lucro, meta atingida, valor positivo |
+| `danger`         | `#DC2626` | Baixa, prejuízo, valor negativo, ação destrutiva |
+| `warning`        | `#F59E0B` | Alertas, vencimento de fatura, atenção |
+| `info`           | `#3B82F6` | Informações neutras, dicas |
+
+### Regra fundamental do mercado
+- **Verde = alta / positivo / lucro**
+- **Vermelho = baixa / negativo / prejuízo**
+- Não inverter, não usar azul para "positivo", não inventar.
+
+---
+
+## Tipografia
+
+- **Fonte principal (UI):** `Inter` — clara, ótima em telas, suporta tabular numbers
+- **Fonte para números/valores:** `JetBrains Mono` ou `IBM Plex Mono` (opcional, só em tabelas e KPIs grandes)
+- **Tabular numbers obrigatório** em valores monetários: `font-variant-numeric: tabular-nums;`
+
+### Escala
+| Uso | Tamanho | Peso |
+|---|---|---|
+| KPI grande (patrimônio total) | 28–32px | 600 |
+| Título de seção (h2)          | 20px    | 600 |
+| Subtítulo / card title (h3)   | 16px    | 600 |
+| Corpo                         | 14px    | 400 |
+| Label / muted                 | 12–13px | 500 |
+| Texto auxiliar                | 11px    | 400 |
+
+---
+
+## Espaçamento e raio
+
+- **Escala base:** múltiplos de 4px (4, 8, 12, 16, 24, 32, 48)
+- **Padding de card:** 16px (mobile) / 20–24px (desktop)
+- **Gap entre cards no grid:** 12–16px
+- **Border radius:**
+  - Inputs e botões: `6px`
+  - Cards: `8–12px`
+  - Modais: `12px`
+  - Pills/badges: `999px` (full)
+
+---
+
+## Componentes-chave
+
+### Card de KPI
+Fundo `surface`, padding 20px, label muted pequeno em cima, número grande embaixo, variação em verde/vermelho com seta `↑`/`↓`.
+
+### Tabela de transações
+Linhas com `border-bottom: 1px solid border` (sem bordas verticais), hover suave em `surface-2`, valores alinhados à direita com tabular-nums, categoria como pill colorida pequena.
+
+### Botões
+- **Primário:** fundo `primary`, texto branco, hover `primary-hover`
+- **Secundário:** fundo transparente, borda `border`, texto `text`
+- **Destrutivo:** fundo transparente, texto `danger`, hover com fundo `danger` em 10% opacidade
+- **Ghost:** sem borda, sem fundo, só texto, hover com fundo `surface-2`
+
+### Inputs
+Fundo `surface`, borda `border`, foco com ring `primary` de 2px, sem sombra interna.
+
+### Gráficos (Recharts)
+- Linha de alta: `success`
+- Linha de baixa: `danger`
+- Linha neutra/total: `primary`
+- Grid: `border` com 30% opacidade
+- Tooltip: `surface-2` com borda `border`
+
+---
+
+## Stack de implementação
+
+- **Tailwind CSS** com tokens custom em `tailwind.config.ts`
+- **shadcn/ui** como base de componentes (theme "slate", primary override pro verde)
+- **Lucide Icons** para ícones (outline, traço fino, combina com flat moderno)
+- **Recharts** para gráficos
+- **Inter** carregada via `next/font/google`
+
+### Snippet de configuração do Tailwind
+
+```ts
+// tailwind.config.ts
+colors: {
+  bg:         '#0F172A',
+  surface:    '#1E293B',
+  'surface-2':'#334155',
+  border:     '#334155',
+  muted:      '#94A3B8',
+  text:       '#F8FAFC',
+  primary: {
+    DEFAULT: '#059669',
+    hover:   '#047857',
+    bg:      '#064E3B',
+  },
+  success:  '#10B981',
+  danger:   '#DC2626',
+  warning:  '#F59E0B',
+  info:     '#3B82F6',
+}
+```

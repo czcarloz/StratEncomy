@@ -10,44 +10,63 @@
   }
 
   body {
-    background-color: #0F172A;
-    color: #F8FAFC;
+    background-color: #030B1B;
+    background-image:
+      radial-gradient(ellipse 70% 55% at 10% -5%,  rgba(120, 0, 255, 0.18) 0%, transparent 65%),
+      radial-gradient(ellipse 55% 45% at 90% 105%,  rgba(0, 200, 150, 0.14) 0%, transparent 60%),
+      radial-gradient(ellipse 90% 70% at 50%  55%,  rgba(0, 50, 180, 0.10) 0%, transparent 75%);
+    color: #D8E8F6;
     font-family: "Inter", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
   }
 
-  /* Tabular numbers for all monetary values */
-  .tabular {
-    font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum";
+  ::selection {
+    background: rgba(0, 200, 150, 0.25);
+    color: #fff;
   }
 
-  /* Scrollbar styling */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  ::-webkit-scrollbar-track {
-    background: #0F172A;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: #334155;
-    border-radius: 3px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: #475569;
-  }
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
 
-  /* Date input calendar icon color fix */
+  /* Date input icon */
   input[type="date"]::-webkit-calendar-picker-indicator {
-    filter: invert(0.6);
+    filter: invert(0.5) brightness(1.4);
     cursor: pointer;
+  }
+
+  /* Native select options inherit body bg */
+  option {
+    background-color: #0D1E40;
+    color: #D8E8F6;
   }
 }
 
 @layer utilities {
+  /* Glass effect applied to every card-shaped element */
+  .rounded-card {
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  /* Stronger blur for modals */
+  .rounded-modal {
+    backdrop-filter: blur(28px);
+    -webkit-backdrop-filter: blur(28px);
+  }
+
+  /* Subtle blur for inputs/selects */
+  .rounded-input {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
   .tabular {
     font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
   }
 }

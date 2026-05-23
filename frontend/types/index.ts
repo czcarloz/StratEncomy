@@ -137,6 +137,7 @@ export interface Asset {
   ticker: string;
   name: string | null;
   asset_class: AssetClass;
+  currency: string;
   created_at: string;
 }
 
@@ -171,6 +172,7 @@ export interface AssetPosition {
   ticker: string;
   name: string | null;
   asset_class: AssetClass;
+  currency: string;
   quantity: string;
   avg_price: string;
   total_invested: string;
@@ -212,6 +214,13 @@ export interface B3ConfirmResult {
   operations_created: number;
   dividends_created: number;
   assets_created: number;
+}
+
+export interface MonthlySnapshot {
+  year: number;
+  month: number;
+  total_invested: string;
+  market_value: string;
 }
 
 export interface AuditLog {

@@ -34,6 +34,13 @@ class AssetCreate(BaseModel):
     ticker: str
     name: str | None = None
     asset_class: AssetClass = AssetClass.stock
+    currency: str = "BRL"
+
+
+class AssetUpdate(BaseModel):
+    name: str | None = None
+    asset_class: AssetClass | None = None
+    currency: str | None = None
 
 
 class AssetOut(BaseModel):
@@ -43,6 +50,7 @@ class AssetOut(BaseModel):
     ticker: str
     name: str | None
     asset_class: AssetClass
+    currency: str
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -118,6 +126,7 @@ class AssetPosition(BaseModel):
     ticker: str
     name: str | None
     asset_class: AssetClass
+    currency: str
     quantity: Decimal
     avg_price: Decimal
     total_invested: Decimal
@@ -130,3 +139,10 @@ class PortfolioPosition(BaseModel):
     total_invested: Decimal
     total_dividends: Decimal
     positions: list[AssetPosition]
+
+
+class MonthlyInvestmentPoint(BaseModel):
+    year: int
+    month: int
+    total_invested: Decimal  # custo acumulado
+    market_value: Decimal    # valor a mercado no fim do mês

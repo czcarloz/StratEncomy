@@ -86,11 +86,21 @@ def _normalize_ticker(ticker: str, mercado: str) -> str:
     return t
 
 
+_B3_ETF_TICKERS = {
+    "BOVA11", "IVVB11", "SMAL11", "HASH11", "GOLD11", "EURP11", "NASD11",
+    "XINA11", "DIVO11", "SPXI11", "ACWI11", "WRLD11", "USDB11", "BBSD11",
+    "ISUS11", "KBCA11", "BBFO11", "ECOO11", "FIND11", "MATB11", "UTIL11",
+    "BOVX11", "TRIG11", "BBOV11", "PIBB11", "BRAX11",
+}
+
+
 def _guess_asset_class(ticker: str) -> str:
     """Best-effort heuristic — user can change after import."""
     t = ticker.upper()
     if t.startswith("TESOURO"):
         return "bond"
+    if t in _B3_ETF_TICKERS:
+        return "etf"
     if t.endswith("11"):
         return "fii"
     if t.endswith(("3", "4", "5", "6", "7", "8")):

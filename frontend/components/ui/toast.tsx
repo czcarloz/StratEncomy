@@ -19,10 +19,28 @@ const ICONS = {
   info:    Info,
 };
 
-const STYLES = {
-  error:   "border-danger/40 bg-danger-bg text-danger",
-  success: "border-primary/40 bg-primary-bg text-success",
-  info:    "border-info/40 bg-info-bg text-info",
+const TOAST_STYLE: Record<ToastType, React.CSSProperties> = {
+  success: {
+    background: "rgba(0,200,150,0.12)",
+    border: "1px solid rgba(0,200,150,0.28)",
+    boxShadow: "0 8px 32px rgba(0,0,0,0.40), 0 0 20px rgba(0,200,150,0.10)",
+  },
+  error: {
+    background: "rgba(255,69,101,0.12)",
+    border: "1px solid rgba(255,69,101,0.28)",
+    boxShadow: "0 8px 32px rgba(0,0,0,0.40), 0 0 20px rgba(255,69,101,0.10)",
+  },
+  info: {
+    background: "rgba(74,158,255,0.12)",
+    border: "1px solid rgba(74,158,255,0.28)",
+    boxShadow: "0 8px 32px rgba(0,0,0,0.40), 0 0 20px rgba(74,158,255,0.10)",
+  },
+};
+
+const ICON_COLOR: Record<ToastType, string> = {
+  success: "#00C896",
+  error:   "#FF4565",
+  info:    "#4A9EFF",
 };
 
 export function Toast({ message, type = "error", duration = 4000, onClose }: ToastProps) {
@@ -30,9 +48,7 @@ export function Toast({ message, type = "error", duration = 4000, onClose }: Toa
   const Icon = ICONS[type];
 
   useEffect(() => {
-    // animate in
     const show = setTimeout(() => setVisible(true), 10);
-    // auto-dismiss
     const hide = setTimeout(() => {
       setVisible(false);
       setTimeout(onClose, 300);
@@ -43,27 +59,30 @@ export function Toast({ message, type = "error", duration = 4000, onClose }: Toa
   return (
     <div
       className={cn(
-        "flex items-start gap-3 rounded-card border px-4 py-3 shadow-xl text-sm max-w-sm transition-all duration-300",
-        STYLES[type],
+        "flex items-start gap-3 rounded-card px-4 py-3 text-sm max-w-sm transition-all duration-300",
         visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2",
       )}
+      style={{
+        ...TOAST_STYLE[type],
+        backdropFilter: "blur(16px)",
+        WebkitBackdropFilter: "blur(16px)",
+      }}
     >
-      <Icon size={16} className="mt-0.5 shrink-0" />
-      <span className="flex-1">{message}</span>
-      <button onClick={() => { setVisible(false); setTimeout(onClose, 300); }} className="shrink-0 opacity-60 hover:opacity-100 transition-opacity">
+      <Icon size={16} className="mt-0.5 shrink-0" style={{ color: ICON_COLOR[type] }} />
+      <span className="flex-1 text-text">{message}</span>
+      <button
+        onClick={() => { setVisible(false); setTimeout(onClose, 300); }}
+        className="shrink-0 opacity-50 hover:opacity-100 transition-opacity text-muted"
+      >
         <X size={14} />
       </button>
     </div>
   );
 }
 
-// ── Toast container (fixed bottom-right) ─────────────────────────────────────
+// ── Toast container ───────────────────────────────────────────────────────────
 
-interface ToastItem {
-  id: number;
-  message: string;
-  type: ToastType;
-}
+interface ToastItem { id: number; message: string; type: ToastType; }
 
 let _counter = 0;
 type Listener = (toasts: ToastItem[]) => void;

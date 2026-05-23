@@ -8,10 +8,32 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantClass: Record<string, string> = {
-  primary:   "bg-primary hover:bg-primary-hover text-white",
-  secondary: "bg-transparent border border-border text-text hover:bg-surface-2",
-  ghost:     "bg-transparent hover:bg-surface-2 text-muted hover:text-text",
-  danger:    "bg-transparent text-danger border border-border hover:bg-danger/10 hover:border-danger",
+  primary:   "text-white font-semibold",
+  secondary: "bg-transparent text-text font-medium",
+  ghost:     "bg-transparent text-muted hover:text-text",
+  danger:    "bg-transparent text-danger font-medium",
+};
+
+const variantStyle: Record<string, React.CSSProperties> = {
+  primary: {
+    background: "linear-gradient(135deg, #00C896 0%, #00A87A 100%)",
+    boxShadow: "0 0 18px rgba(0,200,150,0.28), inset 0 1px 0 rgba(255,255,255,0.15)",
+    border: "1px solid rgba(0,200,150,0.40)",
+  },
+  secondary: {
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    backdropFilter: "blur(8px)",
+  },
+  ghost: {
+    background: "transparent",
+    border: "1px solid transparent",
+  },
+  danger: {
+    background: "rgba(255,69,101,0.08)",
+    border: "1px solid rgba(255,69,101,0.25)",
+    backdropFilter: "blur(8px)",
+  },
 };
 
 const sizeClass: Record<string, string> = {
@@ -24,6 +46,7 @@ export function Button({
   variant = "primary",
   size = "md",
   className,
+  style,
   children,
   disabled,
   ...props
@@ -32,8 +55,9 @@ export function Button({
     <button
       {...props}
       disabled={disabled}
+      style={{ ...variantStyle[variant], ...style }}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-input font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-bg disabled:opacity-40 disabled:pointer-events-none",
+        "inline-flex items-center justify-center gap-2 rounded-input font-medium transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-1 focus:ring-offset-transparent disabled:opacity-40 disabled:pointer-events-none hover:brightness-110 active:scale-[0.98]",
         variantClass[variant],
         sizeClass[size],
         className

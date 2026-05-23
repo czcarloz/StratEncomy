@@ -46,6 +46,7 @@ class Asset(Base):
     ticker: Mapped[str] = mapped_column(String(50), nullable=False)
     name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     asset_class: Mapped[AssetClass] = mapped_column(Enum(AssetClass), nullable=False, default=AssetClass.stock)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="BRL")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
