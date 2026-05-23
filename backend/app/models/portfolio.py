@@ -43,7 +43,7 @@ class Asset(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     portfolio_id: Mapped[int] = mapped_column(ForeignKey("portfolios.id"), nullable=False, index=True)
     tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
-    ticker: Mapped[str] = mapped_column(String(20), nullable=False)
+    ticker: Mapped[str] = mapped_column(String(50), nullable=False)
     name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     asset_class: Mapped[AssetClass] = mapped_column(Enum(AssetClass), nullable=False, default=AssetClass.stock)
     created_at: Mapped[datetime] = mapped_column(

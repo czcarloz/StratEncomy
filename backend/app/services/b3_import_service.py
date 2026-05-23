@@ -77,6 +77,8 @@ def _abbreviate_broker(name: str) -> str:
 def _guess_asset_class(ticker: str) -> str:
     """Best-effort heuristic — user can change after import."""
     t = ticker.upper()
+    if t.startswith("TESOURO"):
+        return "bond"
     if t.endswith("11"):
         return "fii"
     if t.endswith(("3", "4", "5", "6", "7", "8")):
