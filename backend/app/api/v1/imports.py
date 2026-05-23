@@ -1,6 +1,7 @@
 """B3 import endpoints — preview + confirm."""
 from __future__ import annotations
 
+from datetime import date as date_type
 from decimal import Decimal
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File, status
@@ -158,7 +159,7 @@ async def import_confirm(
             quantity=qty,
             unit_price=price,
             total_amount=(qty * price).quantize(Decimal("0.01")),
-            date=op.date,
+            date=date_type.fromisoformat(op.date),
             broker=op.broker,
             created_by=user.id,
         )
@@ -173,7 +174,7 @@ async def import_confirm(
             portfolio_id=portfolio_id,
             tenant_id=tenant_id,
             amount=Decimal(div.amount),
-            date=div.date,
+            date=date_type.fromisoformat(div.date),
             note=div.note,
             created_by=user.id,
         )
