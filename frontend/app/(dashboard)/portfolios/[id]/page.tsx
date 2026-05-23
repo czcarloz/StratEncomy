@@ -63,18 +63,16 @@ function gainColor(v: number) {
 
 interface PriceData { price: number; changePercent: number }
 
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
 async function fetchPrices(tickers: string[]): Promise<Record<string, PriceData>> {
-  const fetchable = tickers.filter(t => !t.toUpperCase().startsWith("TESOURO"));
-  if (fetchable.length === 0) return {};
+  if (tickers.length === 0) return {};
   try {
-    const res = await fetch(`https://brapi.dev/api/quote/${fetchable.join(",")}`);
+    const res = await fetch(`${BASE}/api/v1/prices?tickers=${tickers.join(",")}`);
     if (!res.ok) return {};
-    const data = await res.json();
+    const data: { symbol: string; price: number; change_percent: number }[] = await res.json();
     const out: Record<string, PriceData> = {};
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    data.results?.forEach((r: any) => {
-      out[r.symbol] = { price: r.regularMarketPrice, changePercent: r.regularMarketChangePercent ?? 0 };
-    });
+    data.forEach(r => { out[r.symbol] = { price: r.price, changePercent: r.change_percent }; });
     return out;
   } catch {
     return {};
