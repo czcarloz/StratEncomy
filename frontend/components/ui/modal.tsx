@@ -27,15 +27,26 @@ export function Modal({ open, onClose, title, children, className }: ModalProps)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-bg/80 backdrop-blur-[2px]"
+        className="absolute inset-0"
+        style={{ background: "rgba(2,8,24,0.70)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}
         onClick={onClose}
       />
+
+      {/* Panel */}
       <div
         className={cn(
-          "relative z-10 w-full max-w-md rounded-modal border border-border bg-surface p-6 shadow-2xl",
+          "relative z-10 w-full max-w-md rounded-modal p-6",
           className
         )}
+        style={{
+          background: "rgba(10,22,54,0.82)",
+          backdropFilter: "blur(28px)",
+          WebkitBackdropFilter: "blur(28px)",
+          border: "1px solid rgba(255,255,255,0.12)",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.60), inset 0 1px 0 rgba(255,255,255,0.08)",
+        }}
       >
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-base font-semibold text-text">{title}</h2>

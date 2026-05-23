@@ -137,6 +137,7 @@ export interface Asset {
   ticker: string;
   name: string | null;
   asset_class: AssetClass;
+  currency: string;
   created_at: string;
 }
 
@@ -171,6 +172,7 @@ export interface AssetPosition {
   ticker: string;
   name: string | null;
   asset_class: AssetClass;
+  currency: string;
   quantity: string;
   avg_price: string;
   total_invested: string;
@@ -183,6 +185,42 @@ export interface PortfolioPosition {
   total_invested: string;
   total_dividends: string;
   positions: AssetPosition[];
+}
+
+export interface B3ParsedOperation {
+  ticker: string;
+  op_type: "buy" | "sell";
+  quantity: string;
+  unit_price: string;
+  date: string;
+  broker: string | null;
+}
+
+export interface B3ParsedDividend {
+  ticker: string;
+  amount: string;
+  date: string;
+  note: string | null;
+}
+
+export interface B3PreviewResult {
+  operations: B3ParsedOperation[];
+  dividends: B3ParsedDividend[];
+  skipped_count: number;
+  skipped_reasons: string[];
+}
+
+export interface B3ConfirmResult {
+  operations_created: number;
+  dividends_created: number;
+  assets_created: number;
+}
+
+export interface MonthlySnapshot {
+  year: number;
+  month: number;
+  total_invested: string;
+  market_value: string;
 }
 
 export interface AuditLog {

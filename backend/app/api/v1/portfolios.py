@@ -1,16 +1,23 @@
+import calendar as cal_mod
+from collections import defaultdict
+from datetime import date, timedelta
 from decimal import Decimal
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select
 
+from app.api.v1.prices import _to_yf
 from app.core.deps import CurrentUser, DB, TenantID
 from app.models.portfolio import Asset, Dividend, InvestmentTransaction, OperationType, Portfolio
 from app.schemas.portfolio import (
     AssetCreate,
     AssetOut,
+    AssetUpdate,
     AssetPosition,
     DividendCreate,
     DividendOut,
+    MonthlyInvestmentPoint,
     OperationCreate,
     OperationOut,
     PortfolioCreate,
@@ -124,6 +131,7 @@ async def get_position(portfolio_id: int, db: DB, tenant_id: TenantID):
                 ticker=asset.ticker,
                 name=asset.name,
                 asset_class=asset.asset_class,
+                currency=asset.currency,
                 quantity=qty,
                 avg_price=avg_price,
                 total_invested=(qty * avg_price).quantize(Decimal("0.01")),
@@ -140,6 +148,177 @@ async def get_position(portfolio_id: int, db: DB, tenant_id: TenantID):
         total_dividends=total_dividends,
         positions=positions,
     )
+
+
+# ── Portfolio history ─────────────────────────────────────────────────────────
+
+def _fetch_monthly_prices_sync(
+    sym_to_aid: dict[str, int],
+    start: date,
+    end: date,
+) -> dict[int, dict[tuple[int, int], float]]:
+    """Busca preços de fechamento mensais via yfinance para cada ativo."""
+    import yfinance as yf
+
+    result: dict[int, dict[tuple[int, int], float]] = {aid: {} for aid in sym_to_aid.values()}
+    if not sym_to_aid:
+        return result
+
+    end_dt = date(end.year, end.month, 1) + timedelta(days=35)
+    symbols = list(sym_to_aid.keys())
+
+    try:
+        tkrs = yf.Tickers(" ".join(symbols))
+        for sym, ticker_obj in tkrs.tickers.items():
+            aid = sym_to_aid.get(sym)
+            if aid is None:
+                continue
+            try:
+                hist = ticker_obj.history(
+                    start=start.strftime("%Y-%m-%d"),
+                    end=end_dt.strftime("%Y-%m-%d"),
+                    interval="1mo",
+                )
+                for idx, row in hist.iterrows():
+                    price = row.get("Close")
+                    if price is not None and price == price:  # não-NaN
+                        result[aid][(idx.year, idx.month)] = float(price)
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    return result
+
+
+@router.get("/{portfolio_id}/history", response_model=list[MonthlyInvestmentPoint])
+async def get_portfolio_history(
+    portfolio_id: int, db: DB, tenant_id: TenantID,
+    year: int | None = Query(None),
+    usd_brl: float = Query(1.0),
+):
+    await _get_portfolio_or_404(db, portfolio_id, tenant_id)
+
+    assets = (await db.scalars(
+        select(Asset).where(Asset.portfolio_id == portfolio_id)
+    )).all()
+    asset_map = {a.id: a for a in assets}
+
+    all_ops = (await db.scalars(
+        select(InvestmentTransaction)
+        .where(InvestmentTransaction.portfolio_id == portfolio_id)
+        .order_by(InvestmentTransaction.date)
+    )).all()
+
+    if not all_ops:
+        return []
+
+    usd_rate = Decimal(str(usd_brl))
+    first_date = min(op.date for op in all_ops)
+    today = date.today()
+
+    # Meses da timeline
+    months: list[tuple[int, int]] = []
+    y, m = first_date.year, first_date.month
+    while (y, m) <= (today.year, today.month):
+        months.append((y, m))
+        m += 1
+        if m > 12:
+            m, y = 1, y + 1
+
+    # Operações por ativo
+    ops_by_asset: dict[int, list] = {a.id: [] for a in assets}
+    for op in all_ops:
+        if op.asset_id in ops_by_asset:
+            ops_by_asset[op.asset_id].append(op)
+
+    # Quantidade mantida por ativo em cada mês (incremental)
+    asset_qty_history: dict[int, dict[tuple[int, int], Decimal]] = {}
+    for asset in assets:
+        qty = Decimal("0")
+        ops_sorted = sorted(ops_by_asset[asset.id], key=lambda o: o.date)
+        op_idx = 0
+        qty_hist: dict[tuple[int, int], Decimal] = {}
+        for (ym_y, ym_m) in months:
+            last_day = date(ym_y, ym_m, cal_mod.monthrange(ym_y, ym_m)[1])
+            while op_idx < len(ops_sorted) and ops_sorted[op_idx].date <= last_day:
+                op = ops_sorted[op_idx]
+                if op.type == OperationType.buy:
+                    qty += op.quantity
+                else:
+                    qty = max(Decimal("0"), qty - op.quantity)
+                op_idx += 1
+            qty_hist[(ym_y, ym_m)] = qty
+        asset_qty_history[asset.id] = qty_hist
+
+    # Preços históricos mensais via yfinance
+    sym_to_aid: dict[str, int] = {}
+    for asset in assets:
+        sym = _to_yf(asset.ticker)
+        if sym:
+            sym_to_aid[sym] = asset.id
+
+    price_history: dict[int, dict[tuple[int, int], float]] = {}
+    if sym_to_aid:
+        price_history = await run_in_threadpool(
+            _fetch_monthly_prices_sync, sym_to_aid, first_date, today
+        )
+
+    # Custo acumulado por mês
+    monthly_cost_delta: dict[tuple[int, int], Decimal] = defaultdict(Decimal)
+    for op in all_ops:
+        ym = (op.date.year, op.date.month)
+        a = asset_map.get(op.asset_id)
+        rate = usd_rate if (a and a.currency == "USD") else Decimal("1")
+        amt = (op.total_amount * rate).quantize(Decimal("0.01"))
+        if op.type == OperationType.buy:
+            monthly_cost_delta[ym] += amt
+        else:
+            monthly_cost_delta[ym] -= amt
+
+    results: list[MonthlyInvestmentPoint] = []
+    cumulative_cost = Decimal("0")
+
+    for (ym_y, ym_m) in months:
+        cumulative_cost += monthly_cost_delta.get((ym_y, ym_m), Decimal("0"))
+
+        # Valor a mercado: qty × preço mensal para cada ativo
+        market_value = Decimal("0")
+        for asset in assets:
+            qty = asset_qty_history[asset.id].get((ym_y, ym_m), Decimal("0"))
+            if qty <= 0:
+                continue
+            rate = usd_rate if asset.currency == "USD" else Decimal("1")
+
+            if asset.id in price_history and (ym_y, ym_m) in price_history[asset.id]:
+                price = Decimal(str(price_history[asset.id][(ym_y, ym_m)]))
+                market_value += (qty * price * rate).quantize(Decimal("0.01"))
+            else:
+                # Fallback: usa custo histórico do ativo naquele mês
+                ops_sorted = sorted(ops_by_asset[asset.id], key=lambda o: o.date)
+                last_day = date(ym_y, ym_m, cal_mod.monthrange(ym_y, ym_m)[1])
+                held, cost = Decimal("0"), Decimal("0")
+                for op in ops_sorted:
+                    if op.date > last_day:
+                        break
+                    if op.type == OperationType.buy:
+                        held += op.quantity
+                        cost += op.quantity * op.unit_price
+                    else:
+                        if held > 0:
+                            avg = cost / held
+                            cost -= op.quantity * avg
+                            held = max(Decimal("0"), held - op.quantity)
+                market_value += (cost * rate).quantize(Decimal("0.01"))
+
+        if year is None or ym_y == year:
+            results.append(MonthlyInvestmentPoint(
+                year=ym_y, month=ym_m,
+                total_invested=cumulative_cost.quantize(Decimal("0.01")),
+                market_value=market_value.quantize(Decimal("0.01")),
+            ))
+
+    return results
 
 
 # ── Assets ────────────────────────────────────────────────────────────────────
@@ -162,6 +341,26 @@ async def add_asset(request: Request, portfolio_id: int, body: AssetCreate, db: 
     await audit(db, "asset.create", user_id=user.id, tenant_id=tenant_id,
                 entity="asset", entity_id=asset.id,
                 payload={"ticker": body.ticker, "class": body.asset_class}, ip=client_ip(request))
+    await db.commit()
+    await db.refresh(asset)
+    return asset
+
+
+@router.patch("/{portfolio_id}/assets/{asset_id}", response_model=AssetOut)
+async def update_asset(
+    request: Request, portfolio_id: int, asset_id: int,
+    body: AssetUpdate, db: DB, user: CurrentUser, tenant_id: TenantID,
+):
+    asset = await _get_asset_or_404(db, asset_id, portfolio_id, tenant_id)
+    if body.name is not None:
+        asset.name = body.name
+    if body.asset_class is not None:
+        asset.asset_class = body.asset_class
+    if body.currency is not None:
+        asset.currency = body.currency
+    await audit(db, "asset.update", user_id=user.id, tenant_id=tenant_id,
+                entity="asset", entity_id=asset_id,
+                payload=body.model_dump(exclude_none=True), ip=client_ip(request))
     await db.commit()
     await db.refresh(asset)
     return asset
