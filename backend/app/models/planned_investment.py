@@ -12,6 +12,7 @@ class PlannedInvestment(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    portfolio_id: Mapped[int | None] = mapped_column(ForeignKey("portfolios.id"), nullable=True, index=True)
     month: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     year: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     asset_label: Mapped[str] = mapped_column(String(200), nullable=False)

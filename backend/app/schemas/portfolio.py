@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date as _Date, datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, field_validator
@@ -62,7 +62,7 @@ class OperationCreate(BaseModel):
     type: OperationType
     quantity: Decimal
     unit_price: Decimal
-    date: date
+    date: _Date
     broker: str | None = None
     note: str | None = None
 
@@ -74,6 +74,15 @@ class OperationCreate(BaseModel):
         return v
 
 
+class OperationUpdate(BaseModel):
+    type: OperationType | None = None
+    quantity: Decimal | None = None
+    unit_price: Decimal | None = None
+    date: _Date | None = None
+    broker: str | None = None
+    note: str | None = None
+
+
 class OperationOut(BaseModel):
     id: int
     asset_id: int
@@ -83,7 +92,7 @@ class OperationOut(BaseModel):
     quantity: Decimal
     unit_price: Decimal
     total_amount: Decimal
-    date: date
+    date: _Date
     broker: str | None
     note: str | None
     created_at: datetime
@@ -95,7 +104,7 @@ class OperationOut(BaseModel):
 
 class DividendCreate(BaseModel):
     amount: Decimal
-    date: date
+    date: _Date
     note: str | None = None
 
     @field_validator("amount")
@@ -112,7 +121,7 @@ class DividendOut(BaseModel):
     portfolio_id: int
     tenant_id: int
     amount: Decimal
-    date: date
+    date: _Date
     note: str | None
     created_at: datetime
 

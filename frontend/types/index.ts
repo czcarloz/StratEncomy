@@ -110,6 +110,7 @@ export interface MonthlyPoint {
 export interface PlannedInvestment {
   id: number;
   tenant_id: number;
+  portfolio_id: number | null;
   month: number;
   year: number;
   asset_label: string;
@@ -221,6 +222,35 @@ export interface MonthlySnapshot {
   month: number;
   total_invested: string;
   market_value: string;
+}
+
+export interface PlanConfig {
+  initial_patrimony: string;
+  monthly_rate: string;
+  horizon_years: number;
+}
+
+export interface PlanPhase {
+  id: number;
+  tenant_id: number;
+  start_year: number;
+  start_month: number;
+  salary: string;
+  aporte: string;
+  gasto_maximo: string;
+  note: string | null;
+  created_at: string;
+}
+
+export interface FinancialGoal {
+  id: number;
+  tenant_id: number;
+  description: string;
+  target_date: string;
+  target_amount: string;
+  actual_amount: string | null;
+  note: string | null;
+  created_at: string;
 }
 
 export interface AuditLog {

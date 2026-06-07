@@ -8,7 +8,7 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select
 
 from app.api.v1.prices import _to_yf
-from app.core.deps import CurrentUser, DB, TenantID
+from app.core.deps import AdminUser, CurrentUser, DB, TenantID
 from app.models.portfolio import Asset, Dividend, InvestmentTransaction, OperationType, Portfolio
 from app.schemas.portfolio import (
     AssetCreate,
@@ -20,6 +20,7 @@ from app.schemas.portfolio import (
     MonthlyInvestmentPoint,
     OperationCreate,
     OperationOut,
+    OperationUpdate,
     PortfolioCreate,
     PortfolioOut,
     PortfolioPosition,
@@ -64,7 +65,7 @@ async def list_portfolios(db: DB, tenant_id: TenantID):
 
 
 @router.post("", response_model=PortfolioOut, status_code=status.HTTP_201_CREATED)
-async def create_portfolio(request: Request, body: PortfolioCreate, db: DB, user: CurrentUser, tenant_id: TenantID):
+async def create_portfolio(request: Request, body: PortfolioCreate, db: DB, user: AdminUser, tenant_id: TenantID):
     portfolio = Portfolio(**body.model_dump(), tenant_id=tenant_id)
     db.add(portfolio)
     await db.flush()
@@ -82,7 +83,7 @@ async def get_portfolio(portfolio_id: int, db: DB, tenant_id: TenantID):
 
 
 @router.put("/{portfolio_id}", response_model=PortfolioOut)
-async def update_portfolio(request: Request, portfolio_id: int, body: PortfolioUpdate, db: DB, user: CurrentUser, tenant_id: TenantID):
+async def update_portfolio(request: Request, portfolio_id: int, body: PortfolioUpdate, db: DB, user: AdminUser, tenant_id: TenantID):
     portfolio = await _get_portfolio_or_404(db, portfolio_id, tenant_id)
     data = body.model_dump(exclude_none=True)
     for field, value in data.items():
@@ -96,7 +97,7 @@ async def update_portfolio(request: Request, portfolio_id: int, body: PortfolioU
 
 
 @router.delete("/{portfolio_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_portfolio(request: Request, portfolio_id: int, db: DB, user: CurrentUser, tenant_id: TenantID):
+async def delete_portfolio(request: Request, portfolio_id: int, db: DB, user: AdminUser, tenant_id: TenantID):
     portfolio = await _get_portfolio_or_404(db, portfolio_id, tenant_id)
     await audit(db, "portfolio.delete", user_id=user.id, tenant_id=tenant_id,
                 entity="portfolio", entity_id=portfolio_id,
@@ -333,7 +334,7 @@ async def list_assets(portfolio_id: int, db: DB, tenant_id: TenantID):
 
 
 @router.post("/{portfolio_id}/assets", response_model=AssetOut, status_code=status.HTTP_201_CREATED)
-async def add_asset(request: Request, portfolio_id: int, body: AssetCreate, db: DB, user: CurrentUser, tenant_id: TenantID):
+async def add_asset(request: Request, portfolio_id: int, body: AssetCreate, db: DB, user: AdminUser, tenant_id: TenantID):
     await _get_portfolio_or_404(db, portfolio_id, tenant_id)
     asset = Asset(**body.model_dump(), portfolio_id=portfolio_id, tenant_id=tenant_id)
     db.add(asset)
@@ -349,7 +350,7 @@ async def add_asset(request: Request, portfolio_id: int, body: AssetCreate, db: 
 @router.patch("/{portfolio_id}/assets/{asset_id}", response_model=AssetOut)
 async def update_asset(
     request: Request, portfolio_id: int, asset_id: int,
-    body: AssetUpdate, db: DB, user: CurrentUser, tenant_id: TenantID,
+    body: AssetUpdate, db: DB, user: AdminUser, tenant_id: TenantID,
 ):
     asset = await _get_asset_or_404(db, asset_id, portfolio_id, tenant_id)
     if body.name is not None:
@@ -367,7 +368,7 @@ async def update_asset(
 
 
 @router.delete("/{portfolio_id}/assets/{asset_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_asset(request: Request, portfolio_id: int, asset_id: int, db: DB, user: CurrentUser, tenant_id: TenantID):
+async def delete_asset(request: Request, portfolio_id: int, asset_id: int, db: DB, user: AdminUser, tenant_id: TenantID):
     asset = await _get_asset_or_404(db, asset_id, portfolio_id, tenant_id)
     await audit(db, "asset.delete", user_id=user.id, tenant_id=tenant_id,
                 entity="asset", entity_id=asset_id,
@@ -392,7 +393,7 @@ async def list_operations(portfolio_id: int, asset_id: int, db: DB, tenant_id: T
 @router.post("/{portfolio_id}/assets/{asset_id}/operations", response_model=OperationOut, status_code=status.HTTP_201_CREATED)
 async def add_operation(
     request: Request, portfolio_id: int, asset_id: int,
-    body: OperationCreate, db: DB, user: CurrentUser, tenant_id: TenantID
+    body: OperationCreate, db: DB, user: AdminUser, tenant_id: TenantID
 ):
     await _get_asset_or_404(db, asset_id, portfolio_id, tenant_id)
     total = (body.quantity * body.unit_price).quantize(Decimal("0.01"))
@@ -416,10 +417,31 @@ async def add_operation(
     return op
 
 
+@router.patch("/{portfolio_id}/assets/{asset_id}/operations/{op_id}", response_model=OperationOut)
+async def update_operation(
+    request: Request, portfolio_id: int, asset_id: int, op_id: int,
+    body: OperationUpdate, db: DB, user: AdminUser, tenant_id: TenantID,
+):
+    op = await db.get(InvestmentTransaction, op_id)
+    if not op or op.asset_id != asset_id or op.tenant_id != tenant_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Operation not found")
+    data = body.model_dump(exclude_none=True)
+    for k, v in data.items():
+        setattr(op, k, v)
+    if "quantity" in data or "unit_price" in data:
+        op.total_amount = (op.quantity * op.unit_price).quantize(Decimal("0.01"))
+    await audit(db, "operation.update", user_id=user.id, tenant_id=tenant_id,
+                entity="operation", entity_id=op_id,
+                payload={k: str(v) for k, v in data.items()}, ip=client_ip(request))
+    await db.commit()
+    await db.refresh(op)
+    return op
+
+
 @router.delete("/{portfolio_id}/assets/{asset_id}/operations/{op_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_operation(
     request: Request, portfolio_id: int, asset_id: int, op_id: int,
-    db: DB, user: CurrentUser, tenant_id: TenantID
+    db: DB, user: AdminUser, tenant_id: TenantID
 ):
     op = await db.get(InvestmentTransaction, op_id)
     if not op or op.asset_id != asset_id or op.tenant_id != tenant_id:
@@ -447,7 +469,7 @@ async def list_dividends(portfolio_id: int, db: DB, tenant_id: TenantID):
 @router.post("/{portfolio_id}/assets/{asset_id}/dividends", response_model=DividendOut, status_code=status.HTTP_201_CREATED)
 async def add_dividend(
     request: Request, portfolio_id: int, asset_id: int,
-    body: DividendCreate, db: DB, user: CurrentUser, tenant_id: TenantID
+    body: DividendCreate, db: DB, user: AdminUser, tenant_id: TenantID
 ):
     await _get_asset_or_404(db, asset_id, portfolio_id, tenant_id)
     div = Dividend(
@@ -470,7 +492,7 @@ async def add_dividend(
 @router.delete("/{portfolio_id}/dividends/{div_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_dividend(
     request: Request, portfolio_id: int, div_id: int,
-    db: DB, user: CurrentUser, tenant_id: TenantID
+    db: DB, user: AdminUser, tenant_id: TenantID
 ):
     div = await db.get(Dividend, div_id)
     if not div or div.portfolio_id != portfolio_id or div.tenant_id != tenant_id:

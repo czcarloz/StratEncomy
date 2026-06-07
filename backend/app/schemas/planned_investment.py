@@ -10,6 +10,7 @@ class PlannedInvestmentCreate(BaseModel):
     asset_label: str = Field(..., min_length=1, max_length=200)
     amount_planned: Decimal = Field(..., gt=0)
     note: str | None = Field(None, max_length=500)
+    portfolio_id: int | None = None
 
 
 class PlannedInvestmentUpdate(BaseModel):
@@ -21,6 +22,7 @@ class PlannedInvestmentUpdate(BaseModel):
 class PlannedInvestmentOut(BaseModel):
     id: int
     tenant_id: int
+    portfolio_id: int | None
     month: int
     year: int
     asset_label: str

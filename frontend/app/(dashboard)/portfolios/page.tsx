@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, TrendingUp, ChevronRight } from "lucide-react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/contexts/auth-context";
 import type { Portfolio } from "@/types";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import { toast } from "@/components/ui/toast";
 
 export default function PortfoliosPage() {
   const router = useRouter();
+  const { isAdmin, currentTenantId } = useAuth();
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -23,6 +25,7 @@ export default function PortfoliosPage() {
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
+    if (!currentTenantId) return;
     setLoading(true);
     try {
       setPortfolios(await api.portfolios.list());
@@ -31,7 +34,7 @@ export default function PortfoliosPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentTenantId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -68,12 +71,12 @@ export default function PortfoliosPage() {
     <div className="flex flex-col flex-1 overflow-hidden">
       <Header
         title="Portfolios"
-        action={
+        action={isAdmin ? (
           <Button size="sm" onClick={() => setShowCreate(true)}>
             <Plus size={14} className="mr-1.5" />
             New Portfolio
           </Button>
-        }
+        ) : undefined}
       />
 
       <div className="flex flex-col flex-1 overflow-auto px-6 py-5">
@@ -91,22 +94,24 @@ export default function PortfoliosPage() {
             {portfolios.map((p) => (
               <div
                 key={p.id}
-                className="group relative flex cursor-pointer flex-col gap-1 rounded-card border border-border bg-surface p-4 transition-colors hover:border-primary/40 hover:bg-surface-2"
+                className="group flex cursor-pointer items-center gap-3 rounded-card border border-border bg-surface p-4 transition-colors hover:border-primary/40 hover:bg-surface-2"
                 onClick={() => router.push(`/portfolios/${p.id}`)}
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-text">{p.name}</span>
-                  <ChevronRight size={15} className="text-muted opacity-0 transition-opacity group-hover:opacity-100" />
+                <div className="flex-1 overflow-hidden">
+                  <p className="font-medium text-text truncate">{p.name}</p>
+                  {p.description && (
+                    <p className="text-xs text-muted line-clamp-1 mt-0.5">{p.description}</p>
+                  )}
                 </div>
-                {p.description && (
-                  <p className="text-xs text-muted line-clamp-2">{p.description}</p>
+                {isAdmin && (
+                  <button
+                    className="hidden rounded p-1.5 text-muted hover:text-danger group-hover:flex flex-shrink-0"
+                    onClick={(e) => { e.stopPropagation(); handleDelete(p); }}
+                  >
+                    <Trash2 size={13} />
+                  </button>
                 )}
-                <button
-                  className="absolute right-2 top-2 hidden rounded p-1 text-muted hover:text-danger group-hover:flex"
-                  onClick={(e) => { e.stopPropagation(); handleDelete(p); }}
-                >
-                  <Trash2 size={13} />
-                </button>
+                <ChevronRight size={14} className="text-muted flex-shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
               </div>
             ))}
           </div>

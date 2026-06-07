@@ -1,7 +1,7 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import {
   Plus, Trash2, ArrowUpCircle, ArrowDownCircle,
   Gift, ChevronDown, ChevronRight, Upload, RefreshCw, Pencil,
@@ -12,6 +12,7 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { api } from "@/lib/api";
+import { useAuth } from "@/contexts/auth-context";
 import type { Asset, AssetPosition, Dividend, MonthlySnapshot, Operation, PortfolioPosition } from "@/types";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
@@ -147,6 +148,21 @@ interface AssetRow { asset: Asset; pos: AssetPosition }
 export default function PortfolioDetailPage() {
   const { id } = useParams<{ id: string }>();
   const portfolioId = Number(id);
+  const { isAdmin, currentTenantId } = useAuth();
+  const router = useRouter();
+  const initialTenantRef = useRef<number | null>(null);
+  const pricesLoadedRef  = useRef(false);
+
+  useEffect(() => {
+    if (currentTenantId === null) return;
+    if (initialTenantRef.current === null) {
+      initialTenantRef.current = currentTenantId;
+      return;
+    }
+    if (currentTenantId !== initialTenantRef.current) {
+      router.push("/portfolios");
+    }
+  }, [currentTenantId, router]);
 
   const [assets, setAssets]     = useState<Asset[]>([]);
   const [position, setPosition] = useState<PortfolioPosition | null>(null);
@@ -239,7 +255,10 @@ export default function PortfolioDetailPage() {
     .map(a => ({ asset: a, pos: posMap[a.id] }));
 
   useEffect(() => {
-    if (rows.length > 0) loadPrices(rows);
+    if (rows.length > 0 && !pricesLoadedRef.current) {
+      pricesLoadedRef.current = true;
+      loadPrices(rows);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assets, position]);
 
@@ -329,7 +348,7 @@ export default function PortfolioDetailPage() {
   async function toggleAsset(assetId: number) {
     if (expandedId === assetId) { setExpandedId(null); return; }
     setExpandedId(assetId);
-    if (!assetOps[assetId]) {
+    if (!assetOps[assetId]?.length) {
       try {
         const [ops, divs] = await Promise.all([
           api.portfolios.operations(portfolioId, assetId),
@@ -403,9 +422,10 @@ export default function PortfolioDetailPage() {
       toast.success("Operação registrada");
       const assetId = showAddOp.id;
       setShowAddOp(null); setQty(""); setPrice(""); setBroker("");
-      setAssetOps(prev => ({ ...prev, [assetId]: [] }));
       setExpandedId(null);
       await load();
+      setAssetOps(prev => { const n = { ...prev }; delete n[assetId]; return n; });
+      setAssetDivs(prev => { const n = { ...prev }; delete n[assetId]; return n; });
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Erro ao registrar");
     } finally { setSaving(false); }
@@ -420,12 +440,27 @@ export default function PortfolioDetailPage() {
       toast.success("Dividendo registrado");
       const assetId = showAddDiv.id;
       setShowAddDiv(null); setDivAmount("");
-      setAssetDivs(prev => ({ ...prev, [assetId]: [] }));
       setExpandedId(null);
       await load();
+      setAssetOps(prev => { const n = { ...prev }; delete n[assetId]; return n; });
+      setAssetDivs(prev => { const n = { ...prev }; delete n[assetId]; return n; });
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Erro ao registrar");
     } finally { setSaving(false); }
+  }
+
+  async function handleUpdateOp(assetId: number, opId: number, data: {
+    type?: string; quantity?: string; unit_price?: string; date?: string; broker?: string; note?: string;
+  }) {
+    await api.portfolios.updateOperation(portfolioId, assetId, opId, data);
+    const [, ops, divs] = await Promise.all([
+      load(),
+      api.portfolios.operations(portfolioId, assetId),
+      api.portfolios.dividends(portfolioId),
+    ]);
+    setAssetOps(prev => ({ ...prev, [assetId]: ops }));
+    setAssetDivs(prev => ({ ...prev, [assetId]: divs.filter(d => d.asset_id === assetId) }));
+    toast.success("Operação atualizada");
   }
 
   async function handleDeleteOp(assetId: number, opId: number) {
@@ -450,7 +485,7 @@ export default function PortfolioDetailPage() {
     <div className="flex flex-col flex-1 overflow-hidden">
       <Header
         title={title}
-        action={
+        action={isAdmin ? (
           <div className="flex gap-2">
             <Button size="sm" variant="secondary" onClick={() => setShowImport(true)}>
               <Upload size={14} className="mr-1.5" />Importar B3
@@ -459,7 +494,7 @@ export default function PortfolioDetailPage() {
               <Plus size={14} className="mr-1.5" />Add Ativo
             </Button>
           </div>
-        }
+        ) : undefined}
       />
 
       <div className="flex flex-col flex-1 overflow-auto px-6 py-5 gap-5">
@@ -709,8 +744,8 @@ export default function PortfolioDetailPage() {
                       <p className="text-xs text-muted text-center py-8">Sem dados de operações.</p>
                     ) : (
                       <ResponsiveContainer width="100%" height={220}>
-                        <LineChart data={historyChartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                        <BarChart data={historyChartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }} barCategoryGap="25%" barGap={2}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
                           <XAxis
                             dataKey="label"
                             tick={{ fontSize: 10 }}
@@ -725,6 +760,7 @@ export default function PortfolioDetailPage() {
                             width={52}
                           />
                           <Tooltip
+                            cursor={{ fill: "rgba(255,255,255,0.04)" }}
                             content={({ active, payload, label }) => {
                               if (!active || !payload?.length) return null;
                               return (
@@ -732,7 +768,7 @@ export default function PortfolioDetailPage() {
                                   <p className="font-semibold text-text mb-1">{label}</p>
                                   {payload.map(p => p.value != null && (
                                     <p key={p.dataKey} className="text-muted">
-                                      <span style={{ color: p.stroke }} className="mr-1">■</span>
+                                      <span style={{ color: p.fill }} className="mr-1">■</span>
                                       {p.name}: <span className="font-medium text-text">{fmtBRL(Number(p.value))}</span>
                                     </p>
                                   ))}
@@ -741,27 +777,9 @@ export default function PortfolioDetailPage() {
                             }}
                           />
                           <Legend formatter={(v) => <span className="text-xs text-muted">{v}</span>} />
-                          <Line
-                            type="monotone"
-                            dataKey="mercado"
-                            name="Mercado"
-                            stroke="#3B82F6"
-                            strokeWidth={2}
-                            dot={false}
-                            activeDot={{ r: 4, strokeWidth: 0 }}
-                            connectNulls
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="investido"
-                            name="Custo"
-                            stroke="#6366F1"
-                            strokeWidth={1.5}
-                            strokeDasharray="4 3"
-                            dot={false}
-                            activeDot={{ r: 3, strokeWidth: 0 }}
-                          />
-                        </LineChart>
+                          <Bar dataKey="investido" name="Custo"    fill="#6366F1" radius={[3, 3, 0, 0]} maxBarSize={18} />
+                          <Bar dataKey="mercado"   name="Mercado"  fill="#3B82F6" radius={[3, 3, 0, 0]} maxBarSize={18} />
+                        </BarChart>
                       </ResponsiveContainer>
                     )}
                   </div>
@@ -788,11 +806,13 @@ export default function PortfolioDetailPage() {
                       expandedId={expandedId}
                       assetOps={assetOps}
                       assetDivs={assetDivs}
+                      isAdmin={isAdmin}
                       onToggle={toggleAsset}
                       onAddOp={setShowAddOp}
                       onAddDiv={setShowAddDiv}
                       onDeleteAsset={handleDeleteAsset}
                       onUpdateAsset={openEditAsset}
+                      onUpdateOp={handleUpdateOp}
                       onDeleteOp={handleDeleteOp}
                       onDeleteDiv={handleDeleteDiv}
                     />
@@ -940,8 +960,8 @@ export default function PortfolioDetailPage() {
 
 function AssetClassSection({
   cls, rows, prices, usdBrl, pricesLoading,
-  expandedId, assetOps, assetDivs,
-  onToggle, onAddOp, onAddDiv, onDeleteAsset, onUpdateAsset, onDeleteOp, onDeleteDiv,
+  expandedId, assetOps, assetDivs, isAdmin,
+  onToggle, onAddOp, onAddDiv, onDeleteAsset, onUpdateAsset, onUpdateOp, onDeleteOp, onDeleteDiv,
 }: {
   cls: string;
   rows: AssetRow[];
@@ -951,11 +971,13 @@ function AssetClassSection({
   expandedId: number | null;
   assetOps: Record<number, Operation[]>;
   assetDivs: Record<number, Dividend[]>;
+  isAdmin: boolean;
   onToggle: (id: number) => void;
   onAddOp: (a: Asset) => void;
   onAddDiv: (a: Asset) => void;
   onDeleteAsset: (id: number) => void;
   onUpdateAsset: (a: Asset) => void;
+  onUpdateOp: (assetId: number, opId: number, data: {type?: string; quantity?: string; unit_price?: string; date?: string; broker?: string; note?: string}) => Promise<void>;
   onDeleteOp: (assetId: number, opId: number) => void;
   onDeleteDiv: (assetId: number, divId: number) => void;
 }) {
@@ -1140,28 +1162,30 @@ function AssetClassSection({
                     </td>
 
                     <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
-                        <button
-                          title="Editar classe"
-                          className="rounded p-1.5 text-muted hover:bg-surface hover:text-text transition-colors"
-                          onClick={() => onUpdateAsset(asset)}
-                        ><Pencil size={13} /></button>
-                        <button
-                          title="Compra/Venda"
-                          className="rounded p-1.5 text-muted hover:bg-surface hover:text-text transition-colors"
-                          onClick={() => onAddOp(asset)}
-                        ><ArrowUpCircle size={14} /></button>
-                        <button
-                          title="Dividendo"
-                          className="rounded p-1.5 text-muted hover:bg-surface hover:text-success transition-colors"
-                          onClick={() => onAddDiv(asset)}
-                        ><Gift size={14} /></button>
-                        <button
-                          title="Remover ativo"
-                          className="rounded p-1.5 text-muted hover:bg-surface hover:text-danger transition-colors"
-                          onClick={() => onDeleteAsset(asset.id)}
-                        ><Trash2 size={14} /></button>
-                      </div>
+                      {isAdmin && (
+                        <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                          <button
+                            title="Editar classe"
+                            className="rounded p-1.5 text-muted hover:bg-surface hover:text-text transition-colors"
+                            onClick={() => onUpdateAsset(asset)}
+                          ><Pencil size={13} /></button>
+                          <button
+                            title="Compra/Venda"
+                            className="rounded p-1.5 text-muted hover:bg-surface hover:text-text transition-colors"
+                            onClick={() => onAddOp(asset)}
+                          ><ArrowUpCircle size={14} /></button>
+                          <button
+                            title="Dividendo"
+                            className="rounded p-1.5 text-muted hover:bg-surface hover:text-success transition-colors"
+                            onClick={() => onAddDiv(asset)}
+                          ><Gift size={14} /></button>
+                          <button
+                            title="Remover ativo"
+                            className="rounded p-1.5 text-muted hover:bg-surface hover:text-danger transition-colors"
+                            onClick={() => onDeleteAsset(asset.id)}
+                          ><Trash2 size={14} /></button>
+                        </div>
+                      )}
                     </td>
                   </tr>
 
@@ -1172,6 +1196,8 @@ function AssetClassSection({
                           ops={assetOps[asset.id] ?? []}
                           divs={assetDivs[asset.id] ?? []}
                           currency={asset.currency}
+                          isAdmin={isAdmin}
+                          onUpdateOp={(opId, data) => onUpdateOp(asset.id, opId, data)}
                           onDeleteOp={opId => onDeleteOp(asset.id, opId)}
                           onDeleteDiv={divId => onDeleteDiv(asset.id, divId)}
                         />
@@ -1207,12 +1233,48 @@ function SummaryCard({
 }
 
 function OperationHistory({
-  ops, divs, currency, onDeleteOp, onDeleteDiv,
+  ops, divs, currency, isAdmin, onUpdateOp, onDeleteOp, onDeleteDiv,
 }: {
   ops: Operation[]; divs: Dividend[];
   currency: string;
+  isAdmin: boolean;
+  onUpdateOp: (opId: number, data: {type?: string; quantity?: string; unit_price?: string; date?: string; broker?: string; note?: string}) => Promise<void>;
   onDeleteOp: (id: number) => void; onDeleteDiv: (id: number) => void;
 }) {
+  const [editOp, setEditOp] = useState<Operation | null>(null);
+  const [editForm, setEditForm] = useState({ type: "buy", quantity: "", unit_price: "", date: "", broker: "" });
+  const [saving, setSaving] = useState(false);
+
+  function startEdit(op: Operation) {
+    setEditOp(op);
+    setEditForm({
+      type: op.type,
+      quantity: String(op.quantity),
+      unit_price: String(op.unit_price),
+      date: String(op.date),
+      broker: op.broker ?? "",
+    });
+  }
+
+  async function saveEdit() {
+    if (!editOp) return;
+    setSaving(true);
+    try {
+      await onUpdateOp(editOp.id, {
+        type: editForm.type,
+        quantity: editForm.quantity,
+        unit_price: editForm.unit_price,
+        date: editForm.date,
+        broker: editForm.broker || undefined,
+      });
+      setEditOp(null);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Erro ao atualizar");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (ops.length === 0 && divs.length === 0) {
     return <p className="text-xs text-muted py-2">Nenhuma operação registrada.</p>;
   }
@@ -1229,6 +1291,7 @@ function OperationHistory({
   }
 
   return (
+    <>
     <div className="flex flex-col gap-3">
       {ops.length > 0 && (
         <div>
@@ -1243,9 +1306,16 @@ function OperationHistory({
                 <span className="text-muted flex-1">{fmtQtyLocal(op.quantity)} × {fmtMoney(op.unit_price)}</span>
                 <span className="font-medium text-text">{fmtMoney(op.total_amount)}</span>
                 {op.broker && <span className="text-muted">{op.broker}</span>}
-                <button onClick={() => onDeleteOp(op.id)} className="ml-auto text-muted hover:text-danger">
-                  <Trash2 size={12} />
-                </button>
+                {isAdmin && (
+                  <div className="ml-auto flex items-center gap-2">
+                    <button onClick={() => startEdit(op)} className="text-muted hover:text-text transition-colors" title="Editar">
+                      <Pencil size={12} />
+                    </button>
+                    <button onClick={() => onDeleteOp(op.id)} className="text-muted hover:text-danger transition-colors" title="Remover">
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -1261,14 +1331,72 @@ function OperationHistory({
                 <span className="text-muted w-24">{d.date}</span>
                 <span className="font-medium text-success">{Number(d.amount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
                 {d.note && <span className="text-muted">{d.note}</span>}
-                <button onClick={() => onDeleteDiv(d.id)} className="ml-auto text-muted hover:text-danger">
-                  <Trash2 size={12} />
-                </button>
+                {isAdmin && (
+                  <button onClick={() => onDeleteDiv(d.id)} className="ml-auto text-muted hover:text-danger">
+                    <Trash2 size={12} />
+                  </button>
+                )}
               </div>
             ))}
           </div>
         </div>
       )}
     </div>
+
+    <Modal open={!!editOp} onClose={() => setEditOp(null)} title="Editar Operação">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1.5">
+          <Label>Tipo</Label>
+          <Select
+            options={[{ value: "buy", label: "Compra" }, { value: "sell", label: "Venda" }]}
+            value={editForm.type}
+            onChange={e => setEditForm(f => ({ ...f, type: e.target.value }))}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label>Quantidade</Label>
+            <Input
+              type="number" min="0.00000001" step="any"
+              value={editForm.quantity}
+              onChange={e => setEditForm(f => ({ ...f, quantity: e.target.value }))}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>Preço unitário</Label>
+            <Input
+              type="number" min="0.01" step="0.01"
+              value={editForm.unit_price}
+              onChange={e => setEditForm(f => ({ ...f, unit_price: e.target.value }))}
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label>Data</Label>
+            <Input
+              type="date"
+              value={editForm.date}
+              onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>Corretora (opcional)</Label>
+            <Input
+              placeholder="XP, Clear…"
+              value={editForm.broker}
+              onChange={e => setEditForm(f => ({ ...f, broker: e.target.value }))}
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 pt-1">
+          <Button type="button" variant="secondary" onClick={() => setEditOp(null)}>Cancelar</Button>
+          <Button onClick={saveEdit} disabled={saving}>
+            {saving ? <Spinner className="h-4 w-4" /> : "Atualizar"}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+    </>
   );
 }

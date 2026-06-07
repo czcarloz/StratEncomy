@@ -26,7 +26,7 @@ export default function LoginPage() {
       const tenants = await api.tenants.mine();
       if (tenants.length > 0) auth.setTenantId(tenants[0].id);
 
-      window.location.href = "/transactions";
+      window.location.href = "/dashboard";
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {

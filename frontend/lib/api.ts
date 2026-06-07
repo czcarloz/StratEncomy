@@ -1,5 +1,5 @@
 import { auth } from "./auth";
-import type { Asset, AssetPosition, AuditLog, B3ConfirmResult, B3ParsedDividend, B3ParsedOperation, B3PreviewResult, Category, CreditCard, CreditCardPurchase, DashboardSummary, Dividend, Invoice, MonthlyPoint, MonthlySnapshot, Operation, PlannedInvestment, Portfolio, PortfolioPosition, Tenant, Transaction, User } from "@/types";
+import type { Asset, AssetPosition, AuditLog, B3ConfirmResult, B3ParsedDividend, B3ParsedOperation, B3PreviewResult, Category, CreditCard, CreditCardPurchase, DashboardSummary, Dividend, FinancialGoal, Invoice, MonthlyPoint, MonthlySnapshot, Operation, PlanConfig, PlanPhase, PlannedInvestment, Portfolio, PortfolioPosition, Tenant, Transaction, User } from "@/types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -115,10 +115,11 @@ export const api = {
   },
 
   plannedInvestments: {
-    list: (params: { month?: number; year?: number }) => {
+    list: (params: { month?: number; year?: number; portfolio_id?: number }) => {
       const qs = new URLSearchParams();
       if (params.month) qs.set("month", String(params.month));
       if (params.year) qs.set("year", String(params.year));
+      if (params.portfolio_id) qs.set("portfolio_id", String(params.portfolio_id));
       return req<PlannedInvestment[]>(`/api/v1/planned-investments?${qs}`);
     },
     create: (data: {
@@ -127,6 +128,7 @@ export const api = {
       asset_label: string;
       amount_planned: string;
       note?: string;
+      portfolio_id?: number;
     }) =>
       req<PlannedInvestment>("/api/v1/planned-investments", {
         method: "POST",
@@ -182,6 +184,12 @@ export const api = {
       req<Operation>(`/api/v1/portfolios/${portfolioId}/assets/${assetId}/operations`, {
         method: "POST", body: JSON.stringify(data),
       }),
+    updateOperation: (portfolioId: number, assetId: number, opId: number, data: {
+      type?: string; quantity?: string; unit_price?: string; date?: string; broker?: string; note?: string;
+    }) =>
+      req<Operation>(`/api/v1/portfolios/${portfolioId}/assets/${assetId}/operations/${opId}`, {
+        method: "PATCH", body: JSON.stringify(data),
+      }),
     removeOperation: (portfolioId: number, assetId: number, opId: number) =>
       req<void>(`/api/v1/portfolios/${portfolioId}/assets/${assetId}/operations/${opId}`, { method: "DELETE" }),
 
@@ -223,6 +231,26 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ operations, dividends }),
       }),
+  },
+
+  financialPlan: {
+    getConfig: () => req<PlanConfig>("/api/v1/financial-plan/config"),
+    saveConfig: (data: { initial_patrimony: string; monthly_rate: string; horizon_years: number }) =>
+      req<PlanConfig>("/api/v1/financial-plan/config", { method: "PUT", body: JSON.stringify(data) }),
+
+    listPhases: () => req<PlanPhase[]>("/api/v1/financial-plan/phases"),
+    createPhase: (data: { start_year: number; start_month: number; salary: string; aporte: string; gasto_maximo: string; note?: string }) =>
+      req<PlanPhase>("/api/v1/financial-plan/phases", { method: "POST", body: JSON.stringify(data) }),
+    updatePhase: (id: number, data: Partial<{ start_year: number; start_month: number; salary: string; aporte: string; gasto_maximo: string; note: string }>) =>
+      req<PlanPhase>(`/api/v1/financial-plan/phases/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    deletePhase: (id: number) => req<void>(`/api/v1/financial-plan/phases/${id}`, { method: "DELETE" }),
+
+    listGoals: () => req<FinancialGoal[]>("/api/v1/financial-plan/goals"),
+    createGoal: (data: { description: string; target_date: string; target_amount: string; actual_amount?: string; note?: string }) =>
+      req<FinancialGoal>("/api/v1/financial-plan/goals", { method: "POST", body: JSON.stringify(data) }),
+    updateGoal: (id: number, data: Partial<{ description: string; target_date: string; target_amount: string; actual_amount: string; note: string }>) =>
+      req<FinancialGoal>(`/api/v1/financial-plan/goals/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    deleteGoal: (id: number) => req<void>(`/api/v1/financial-plan/goals/${id}`, { method: "DELETE" }),
   },
 
   admin: {

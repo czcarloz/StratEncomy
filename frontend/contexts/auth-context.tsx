@@ -17,6 +17,7 @@ interface AuthContextValue {
   tenants: Tenant[];
   currentTenantId: number | null;
   isLoading: boolean;
+  isAdmin: boolean;
   setCurrentTenantId: (id: number) => void;
   logout: () => Promise<void>;
 }
@@ -75,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, tenants, currentTenantId, isLoading, setCurrentTenantId, logout }}
+      value={{ user, tenants, currentTenantId, isLoading, isAdmin: user?.role === "admin", setCurrentTenantId, logout }}
     >
       {children}
     </AuthContext.Provider>

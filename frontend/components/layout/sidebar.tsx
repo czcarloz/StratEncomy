@@ -6,23 +6,25 @@ import { LayoutDashboard, ArrowLeftRight, CreditCard, TrendingUp, LogOut, Tag, S
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 
-const NAV = [
-  { href: "/transactions",                 label: "Transactions",        icon: ArrowLeftRight },
-  { href: "/credit-cards",                 label: "Credit Cards",        icon: CreditCard },
-  { href: "/planned-investments",          label: "Planned Investments", icon: TrendingUp },
-  { href: "/portfolios",                   label: "Portfolios",          icon: Briefcase },
-  { href: "/ferramentas/juros-compostos",  label: "Ferramentas",         icon: Wrench },
-  { href: "/categories",                   label: "Categories",          icon: Tag },
-  { href: "/dashboard",                    label: "Dashboard",           icon: LayoutDashboard },
+const NAV_ALL = [
+  { href: "/dashboard",                    label: "Dashboard",           icon: LayoutDashboard, adminOnly: false },
+  { href: "/transactions",                 label: "Transactions",        icon: ArrowLeftRight,  adminOnly: false },
+  { href: "/credit-cards",                 label: "Credit Cards",        icon: CreditCard,      adminOnly: false },
+  { href: "/planned-investments",          label: "Planned Investments", icon: TrendingUp,      adminOnly: true  },
+  { href: "/portfolios",                   label: "Portfolios",          icon: Briefcase,       adminOnly: false },
+  { href: "/ferramentas/juros-compostos",  label: "Juros Compostos",     icon: Wrench,          adminOnly: false },
+  { href: "/ferramentas/simulador-aportes",label: "Simulador Aportes",   icon: TrendingUp,      adminOnly: false },
+  { href: "/categories",                   label: "Categories",          icon: Tag,             adminOnly: false },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, isAdmin, logout } = useAuth();
 
-  const navItems = user?.role === "admin"
-    ? [...NAV, { href: "/audit", label: "Audit Log", icon: ScrollText }]
-    : NAV;
+  const navItems = [
+    ...NAV_ALL.filter(item => !item.adminOnly || isAdmin),
+    ...(isAdmin ? [{ href: "/audit", label: "Audit Log", icon: ScrollText, adminOnly: true }] : []),
+  ];
 
   return (
     <aside
